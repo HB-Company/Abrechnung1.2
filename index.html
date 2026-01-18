@@ -93,76 +93,48 @@
   </div>
 </div>
 
-<!-- ARBEIT (Screenshots / Übersicht / Aufträge) -->
+<!-- ARBEIT (Screenshots + Übersicht + Aufträge) -->
 <div class="section">
+
   <div class="accordion" onclick="toggleWork()" aria-expanded="false">
     🧾 Arbeit (1–3)
   </div>
 
   <div id="workContent" class="accordion-content" style="display:none">
+
+    <!-- SCREENSHOTS -->
     <div class="inner-block">
-      <h2>1️⃣ Screenshots</h2>
-      <input type="file" multiple accept="image/*" onchange="loadScreenshots(this.files)" style="width:100%">
-      <div class="progress"><div id="bar" class="progress-bar"></div></div>
+      <h2>1️⃣ Screenshot hochladen</h2>
+
+      <input type="file" multiple accept="image/jpeg,image/png"
+             onchange="loadScreenshots(this.files)" style="width:100%">
+
+      <div class="progress">
+        <div id="bar" class="progress-bar"></div>
+      </div>
+
       <p id="progressText" class="helper"></p>
     </div>
 
+    <!-- ÜBERSICHT -->
     <div class="inner-block">
       <h2>2️⃣ Übersicht</h2>
       <div id="dashboard" class="dashboard"></div>
     </div>
 
+    <!-- AUFTRÄGE -->
     <div class="inner-block">
       <h2>3️⃣ Aufträge</h2>
 
-      <!-- MANUELLER EINTRAG -->
-      <div class="section">
-        <div class="accordion" onclick="toggleManual()" aria-expanded="false">
-          ✍️ Manueller Eintrag
-        </div>
-
-        <div id="manualContent" class="accordion-content">
-          <div class="row">
-            <label>Datum</label>
-            <input id="m_date" type="date">
-          </div>
-
-          <div class="row">
-            <label>Zeitfenster</label>
-            <select id="m_time"></select>
-          </div>
-
-          <div class="row">
-            <label>Artikel / Beschreibung</label>
-            <input id="m_artikel">
-          </div>
-
-          <div class="row">
-            <label>Paket</label>
-            <select id="m_package"></select>
-          </div>
-
-          <button class="primary" onclick="addManualEntry()">➕ Eintrag hinzufügen</button>
-        </div>
-      </div>
-
       <div id="tabs" class="tabs"></div>
-      <div class="table-wrap small-table"><table id="orderTable"></table></div>
+      <div class="table-wrap small-table">
+        <table id="orderTable"></table>
+      </div>
     </div>
 
-    <div id="tabControls" class="section">
-      <button class="danger" onclick="location.reload()">♻ Reset</button>
-
-      <button class="ghost" onclick="exportCurrentTab()">⬇💾 Save</button>
-
-      <input type="file" id="importTabFile" accept=".json" style="display:none"
-             onchange="importCurrentTab(this.files)">
-      <button class="ghost" onclick="document.getElementById('importTabFile').click()">
-        ⬆📁 Load
-      </button>
-    </div>
   </div>
 </div>
+
 
 </div>
 

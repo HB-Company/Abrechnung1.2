@@ -95,6 +95,9 @@ small{
   color:var(--muted);
   font-size: 13px;
 }
+.inner-block {
+  margin-bottom: 20px;
+}
 
 .section{
   background:var(--card);
