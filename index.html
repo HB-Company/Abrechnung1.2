@@ -95,44 +95,32 @@
 
 <!-- ARBEIT (Screenshots + Übersicht + Aufträge) -->
 <div class="section">
+<!-- ARBEIT 1–3 -->
+<div class="accordion" onclick="toggleWork()">
+  🧾 Screenshots laden
+</div>
 
-  <div class="accordion" onclick="toggleWork()" aria-expanded="false">
-    🧾 Arbeit (1–3)
+<div id="workContent" style="display:none">
+
+  <h2>1️⃣ Screenshot hochladen</h2>
+  <input type="file" multiple accept="image/jpeg,image/png"
+         onchange="loadScreenshots(this.files)">
+
+  <div class="progress">
+    <div id="bar" class="progress-bar"></div>
   </div>
+  <p id="progressText"></p>
 
-  <div id="workContent" class="accordion-content" style="display:none">
+  <h2>2️⃣ Übersicht</h2>
+  <div id="dashboard"></div>
 
-    <!-- SCREENSHOTS -->
-    <div class="inner-block">
-      <h2>1️⃣ Screenshot hochladen</h2>
+  <h2>3️⃣ Aufträge</h2>
+  <div id="tabs"></div>
+  <table id="orderTable"></table>
 
-      <input type="file" multiple accept="image/jpeg,image/png"
-             onchange="loadScreenshots(this.files)" style="width:100%">
+</div>
 
-      <div class="progress">
-        <div id="bar" class="progress-bar"></div>
-      </div>
-
-      <p id="progressText" class="helper"></p>
-    </div>
-
-    <!-- ÜBERSICHT -->
-    <div class="inner-block">
-      <h2>2️⃣ Übersicht</h2>
-      <div id="dashboard" class="dashboard"></div>
-    </div>
-
-    <!-- AUFTRÄGE -->
-    <div class="inner-block">
-      <h2>3️⃣ Aufträge</h2>
-
-      <div id="tabs" class="tabs"></div>
-      <div class="table-wrap small-table">
-        <table id="orderTable"></table>
-      </div>
-    </div>
-
-  </div>
+ 
 </div>
 
 

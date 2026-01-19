@@ -522,12 +522,9 @@ function toggleWork(){
   const el = document.getElementById("workContent");
   if(!el) return;
 
-  const isOpen = el.style.display === "block";
-  el.style.display = isOpen ? "none" : "block";
-
-  const acc = document.querySelector(".accordion[onclick*=toggleWork]");
-  if(acc) acc.setAttribute("aria-expanded", String(!isOpen));
+  el.style.display = el.style.display === "block" ? "none" : "block";
 }
+
 async function loadScreenshots(files){
   try{
     if(!files || files.length === 0){
