@@ -545,11 +545,11 @@ async function loadScreenshots(files){
         throw new Error('HEIC/HEIF erkannt. Bitte JPG/PNG verwenden.');
       }
 
-      __ocrStatus('Vorbereitung: ' + (f.name || 'Bild'));
+      __ocrStatus(`Bild ${done+1}/${files.length}: ${f.name || 'Bild'}`);
 
       const pre = await preprocessImage(f, 2);
 
-      __ocrStatus('OCR läuft…');
+      __ocrStatus(`OCR läuft… (${done+1}/${files.length})`);
       const r = await worker.recognize(pre, {
         tessedit_pageseg_mode: 6,
         preserve_interword_spaces: '1'
@@ -594,13 +594,13 @@ function assignPackagesAfterOCR(){
 function extractOrderNo(str){
   const s = String(str || "");
 
-  // 1) Prefer "Bestellung 123456789" (wenn OCR die Spalte so schreibt)
-  let m = s.match(/Bestellung\s*[:#]?\s*(\d{7,12})/i);
+  // 1) Prefer "Bestellung/Bestellnr/Bestellnummer 123456789" (wenn OCR die Spalte so schreibt)
+  let m = s.match(/Bestell(?:ung|nr|nummer)?\s*[:#]?\s*(\d{7,14})/i);
   if(m) return m[1];
 
   // 2) Fallback: erste lange Ziffernfolge (kein PLZ, keine 1/15)
-  // 5-stellige PLZ ignorieren -> daher 7..12
-  m = s.match(/\b\d{7,12}\b(?!\s*\/)/);
+  // 5-stellige PLZ ignorieren -> daher 7..14
+  m = s.match(/\b\d{7,14}\b(?!\s*\/)/);
   return m ? m[0] : "";
 }
 
@@ -733,9 +733,14 @@ function renderDashboard(){
   <div class="card"><b>Pakete €</b><br>${pkgSum.toFixed(2)}</div>${pkgCards}`;
 }
 
+// UI-Helfer: Referenz auf aktuell gerenderte Auftragsliste (damit Paket-Zuordnung in ALL/Datum/UNK funktioniert)
+let __uiOrdersRef = [];
+
 function renderOrders(){
   let list = activeTab=="ALL" ? [...Object.values(days).flat()] : activeTab=="UNK" ? unknown : (days[activeTab]||[]);
- orderTable.innerHTML = '<tr><th>Datum</th><th>Zeit</th><th>Bestellung</th><th>Artikel</th><th>Paket</th><th>€</th></tr>';
+  __uiOrdersRef = list;
+
+  orderTable.innerHTML = '<tr><th>Datum</th><th>Uhrzeit</th><th>Bestellnr</th><th>Artikel</th><th>Paket</th><th>Preis €</th></tr>';
 
   list.forEach((o,i)=>{
     let sel = '<select onchange="assignPkg(this.value,'+i+')"><option></option>';
@@ -743,26 +748,39 @@ function renderOrders(){
     sel += '</select>';
 
     orderTable.innerHTML += `<tr class="${o.package?'good':'bad'} ${o.slot}">
-  <td>${o.date||''}</td>
-  <td>${o.time||''}</td>
-  <td>${o.orderNo||''}</td>
-  <td>${o.artikel||''}</td>
-  <td>${sel}</td>
-  <td>${o.price||0}</td>
-</tr>`;
+      <td data-label="Datum">${o.date||''}</td>
+      <td data-label="Uhrzeit">${o.time||''}</td>
+      <td data-label="Bestellnr">${o.orderNo||''}</td>
+      <td data-label="Artikel">${o.artikel||''}</td>
+      <td data-label="Paket">${sel}</td>
+      <td data-label="Preis €">${o.price||0}</td>
+    </tr>`;
 
   });
 }
 
 function assignPkg(name,i){
-  let p=packages.find(x=>x.name==name);
-  let o=unknown[i];
-  if(!o || !p) return;
-  o.package=name;
-  o.price=p.price;
-  unknown.splice(i,1);
-  days[o.date]=days[o.date]||[];
-  days[o.date].push(o);
+  const o = (__uiOrdersRef && __uiOrdersRef[i]) ? __uiOrdersRef[i] : null;
+  if(!o) return;
+
+  const p = packages.find(x=>x.name==name);
+
+  if(p){
+    o.package = p.name;
+    o.price = p.price;
+  } else {
+    o.package = "";
+    o.price = 0;
+  }
+
+  // Wenn der Auftrag in unknown liegt und jetzt ein Paket hat -> in days verschieben
+  const unkIdx = unknown.indexOf(o);
+  if(unkIdx !== -1 && p && o.date){
+    unknown.splice(unkIdx, 1);
+    days[o.date] = days[o.date] || [];
+    days[o.date].push(o);
+  }
+
   renderAll();
 }
 

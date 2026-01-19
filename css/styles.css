@@ -204,15 +204,16 @@ input:focus, select:focus, button:focus{
 
 /* ---------- Tabs ---------- */
 .tabs{
-  position: sticky;
-  top: 10px;
-  z-index: 5;
   display:flex;
   gap:8px;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  overflow-y:hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
   padding:10px;
   margin:-6px -6px 10px;
-  background: rgba(255,255,255,.10);
+  background: rgba(255,255,255,.07);
   border:1px solid var(--stroke);
   border-radius: var(--radius-sm);
   backdrop-filter: blur(12px);
@@ -223,6 +224,7 @@ input:focus, select:focus, button:focus{
   align-items:center;
   justify-content:center;
   gap:6px;
+  flex: 0 0 auto;
   padding:10px 12px;
   border-radius: 999px;
   background: rgba(148,163,184,.18);
