@@ -795,12 +795,11 @@ function fillManualPackages(){
 }
 
 function addManualEntry(){
-	orderNo: "",
-
   if(!m_date.value || !m_time.value || !m_artikel.value || !m_package.value){
     alert("❗ Bitte alle Felder ausfüllen");
     return;
   }
+
 
   const date = formatDateFromPicker(m_date.value);
   const time = m_time.value;
@@ -815,6 +814,7 @@ function addManualEntry(){
 
   if(!days[date]) days[date] = [];
   days[date].push({
+	  orderNo: "", 
     date, time,
     artikel: text,
     package: pkg.name,
