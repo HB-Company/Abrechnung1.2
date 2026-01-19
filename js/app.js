@@ -549,7 +549,7 @@ async function loadScreenshots(files){
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
 const scale = isIOS ? 2 : 1.5;
-      const pre = await preprocessImage(f, 2);
+      const pre = await preprocessImage(f, scale);
 
       __ocrStatus(`OCR läuft… (${done+1}/${files.length})`);
       const r = await worker.recognize(pre, {
@@ -641,16 +641,19 @@ function parseOCR(text){
       if(!tm) continue;
 
       const time = tm[0].replace(/\s+/g," ");
-	  const orderNo = extractOrderNo(l);
-const artikelClean = cleanArtikelOneCustomer(l, time);
+	const raw = text.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
+const orderNo = extractOrderNo(raw);
+const artikelClean = cleanArtikelOneCustomer(raw, hit.time);
 
 const obj = {
-  date, time,
+  date,
+  time: hit.time,
   orderNo,
   artikel: artikelClean,
   package:"", price:0,
-  slot: time.startsWith("08") ? "morning" : "afternoon"
+  slot: hit.time.startsWith("08") ? "morning" : "afternoon"
 };
+
 
     
       if(date) days[date].push(obj);
