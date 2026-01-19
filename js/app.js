@@ -814,7 +814,7 @@ function addManualEntry(){
 
   if(!days[date]) days[date] = [];
   days[date].push({
-	  orderNo: "", 
+	//orderNo: "",
     date, time,
     artikel: text,
     package: pkg.name,
