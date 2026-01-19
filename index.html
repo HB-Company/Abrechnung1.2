@@ -142,29 +142,41 @@
       <!-- Manueller Eintrag (Accordion) -->
       <div class="section" style="margin:10px 0 0; padding:12px;">
         <div class="accordion" onclick="toggleManual()" aria-expanded="false">✍️ Manueller Eintrag</div>
-        <div id="manualContent" class="accordion-content">
-          <div class="row">
-            <label>Datum</label>
-            <input id="m_date" type="date">
-          </div>
+<div class="manual-card">
+  <div class="manual-grid">
 
-          <div class="row">
-            <label>Zeitfenster</label>
-            <select id="m_time"></select>
-          </div>
+    <div class="row">
+      <label>Datum</label>
+      <input id="m_date" type="date">
+    </div>
 
-          <div class="row">
-            <label>Artikel / Beschreibung</label>
-            <input id="m_artikel">
-          </div>
+    <div class="row">
+      <label>Zeitfenster</label>
+      <select id="m_time"></select>
+    </div>
 
-          <div class="row">
-            <label>Paket</label>
-            <select id="m_package"></select>
-          </div>
+    <div class="row">
+      <label>Bestellnummer</label>
+      <input id="m_order" inputmode="numeric" placeholder="z.B. 41141243698">
+    </div>
 
-          <button class="primary" onclick="addManualEntry()">➕ Eintrag hinzufügen</button>
-        </div>
+    <div class="row full">
+      <label>Artikel / Beschreibung</label>
+      <input id="m_artikel">
+    </div>
+
+    <div class="row">
+      <label>Paket</label>
+      <select id="m_package"></select>
+    </div>
+
+  </div>
+
+  <button class="primary" onclick="addManualEntry()" style="width:100%; margin-top:10px;">
+    ➕ Eintrag hinzufügen
+  </button>
+</div>
+
       </div>
 
       <div id="tabs" class="tabs"></div>

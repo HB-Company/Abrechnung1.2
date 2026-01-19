@@ -814,14 +814,18 @@ function addManualEntry(){
 
   if(!days[date]) days[date] = [];
   days[date].push({
-	//orderNo: "",
-    date, time,
-    artikel: text,
-    package: pkg.name,
-    price: pkg.price,
-    slot: time.startsWith("08") ? "morning" : "afternoon",
-    manual: true
-  });
+  date,
+  time,
+  orderNo: (document.getElementById("m_order")?.value || "").trim(),
+  artikel: text,
+  package: pkg.name,
+  price: pkg.price,
+  slot: time.startsWith("08") ? "morning" : "afternoon",
+  manual: true
+});
+
+const mo = document.getElementById("m_order");
+if(mo) mo.value = "";
 
   activeTab = date;
   m_artikel.value = "";

@@ -435,6 +435,37 @@ tr.bad.afternoon{background: color-mix(in srgb, var(--bad) 70%, var(--aft) 30%)}
 
 .inner-block{margin-bottom: 18px}
 
+/* -------- Manueller Eintrag (hübscher) -------- */
+.manual-grid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 520px){
+  .manual-grid{
+    grid-template-columns: 1fr 1fr;
+  }
+  .manual-grid .full{
+    grid-column: 1 / -1;
+  }
+}
+
+.manual-card{
+  background: rgba(255,255,255,.10);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.manual-card .row{
+  margin-bottom: 0;
+}
+
+
 /* Reduce blur on small devices for smoother scrolling */
 @media (max-width: 520px){
   header{backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px)}
@@ -480,4 +511,5 @@ tr.bad.afternoon{background: color-mix(in srgb, var(--bad) 70%, var(--aft) 30%)}
     width: 100%;
     min-height: 44px;
   }
+  
 }
