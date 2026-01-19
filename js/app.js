@@ -749,8 +749,8 @@ function __normalizeOcrDigits(raw){
     .replace(/[Bb]/g, "8");
 }
 
-function digitsOnly(s){
-  return __normalizeOcrDigits(s).replace(/\D/g, "");
+function digitsOnly(x){
+  return String(x || "").replace(/\D/g, "");
 }
 
 // --- Erwartete Zeilenzahl aus 1/15, 7/13, 10/17 etc. ---
@@ -1064,8 +1064,75 @@ function renderDashboard(){
 // ===== Jump / Scroll Helpers =====
 
 // Bestellnr normalisieren (nur Ziffern)
-function normalizeOrderNo(v){
-  return String(v || "").replace(/\D/g, "");
+function normalizeOrderNo(x){
+  const d = digitsOnly(x);
+  // Bestellnr ist bei dir meist 9–11, aber wir lassen 7–14 zu (OCR schwankt)
+  if(d.length < 7) return "";
+  if(d.length > 14) return d.slice(0, 14);
+  return d;
+}
+function escAttr(s){
+  return String(s || "").replace(/"/g, "&quot;");
+}
+function statusSelectHtml(current, onChangeJs){
+  const val = current || "";
+  return `
+    <select class="status-select" onchange="${onChangeJs}">
+      <option value="" ${val==="" ? "selected" : ""}>—</option>
+      <option value="✅" ${val==="✅" ? "selected" : ""}>✅</option>
+      <option value="⚠️" ${val==="⚠️" ? "selected" : ""}>⚠️</option>
+      <option value="❌" ${val==="❌" ? "selected" : ""}>❌</option>
+    </select>
+  `;
+}
+let __uiOrdersRef = [];
+
+function setWorkOrderNo(i, raw){
+  const o = (__uiOrdersRef && __uiOrdersRef[i]) ? __uiOrdersRef[i] : null;
+  if(!o) return;
+  o.orderNo = normalizeOrderNo(raw);
+
+  // Status nach manueller Änderung erstmal neutral lassen (Vergleich setzt später neu)
+  if(o.matchStatus) o.matchStatus = "";
+
+  renderOrders(); // sauber neu zeichnen (einfach & robust auf iPhone/PC)
+}
+
+function setWorkStatus(i, status){
+  const o = (__uiOrdersRef && __uiOrdersRef[i]) ? __uiOrdersRef[i] : null;
+  if(!o) return;
+  o.matchStatus = status || "";
+  renderOrders();
+}
+let __uiGsRowsRef = [];
+
+function setGsOrderNo(i, raw){
+  const e = (__uiGsRowsRef && __uiGsRowsRef[i]) ? __uiGsRowsRef[i] : null;
+  if(!e) return;
+  e.orderNo = normalizeOrderNo(raw);
+  if(e.matchStatus) e.matchStatus = "";
+  renderGutschriftAll();
+}
+function setGsStatus(i, status){
+  const e = (__uiGsRowsRef && __uiGsRowsRef[i]) ? __uiGsRowsRef[i] : null;
+  if(!e) return;
+  e.matchStatus = status || "";
+  renderGutschriftAll();
+}
+/* ---- Scroll + Highlight ---- */
+function scrollToOrderRow(tableId, orderNo){
+  const on = normalizeOrderNo(orderNo);
+  if(!on) return;
+
+  const tbl = document.getElementById(tableId);
+  if(!tbl) return;
+
+  const row = tbl.querySelector(`tr[data-orderno="${on}"]`);
+  if(!row) return;
+
+  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  row.classList.add("row-flash");
+  setTimeout(() => row.classList.remove("row-flash"), 1200);
 }
 
 // Springt in Accordion (öffnet ihn, wenn nötig)
@@ -1086,118 +1153,114 @@ function flashRow(tr){
 }
 
 // Springe zu Aufträge (Arbeit) anhand Bestellnr
+/* ---- Jump: Gutschrift -> Work ---- */
 function jumpToWork(orderNo){
-  const target = normalizeOrderNo(orderNo);
-  if(!target) return;
+  const on = normalizeOrderNo(orderNo);
+  if(!on) return;
 
-  // Arbeit öffnen
-  openAccordion("workContent", window.toggleWork);
+  // Work/Arbeit-Akkordeon öffnen wenn vorhanden
+  const workContent = document.getElementById("workContent");
+  if(workContent && workContent.style.display !== "block" && typeof toggleWork === "function"){
+    toggleWork();
+  }
 
-  // finde Auftrag (in ALL/UNK/Datum)
-  let foundTab = null;
-  let foundIndex = -1;
-
-  // days durchsuchen
-  for(const [d, list] of Object.entries(days || {})){
-    const idx = (list || []).findIndex(o => normalizeOrderNo(o.orderNo) === target);
-    if(idx !== -1){
-      foundTab = d;
-      foundIndex = idx;
+  // passenden Auftrag finden -> Tab Datum setzen
+  let foundDate = "";
+  for(const d of Object.keys(days || {})){
+    const arr = Array.isArray(days[d]) ? days[d] : [];
+    if(arr.some(o => normalizeOrderNo(o.orderNo) === on)){
+      foundDate = d;
       break;
     }
   }
-
-  // unknown durchsuchen
-  if(foundIndex === -1 && Array.isArray(unknown)){
-    const idx = unknown.findIndex(o => normalizeOrderNo(o.orderNo) === target);
-    if(idx !== -1){
-      foundTab = "UNK";
-      foundIndex = idx;
+  if(!foundDate && Array.isArray(unknown)){
+    if(unknown.some(o => normalizeOrderNo(o.orderNo) === on)){
+      foundDate = "UNK";
     }
   }
 
-  if(foundIndex === -1){
-    alert("❗ Bestellnr nicht in Aufträge gefunden: " + target);
-    return;
+  if(foundDate){
+    activeTab = foundDate === "UNK" ? "UNK" : foundDate;
+    renderAll();
+  }else{
+    renderAll();
   }
 
-  // Tab setzen (damit Tabelle die Zeile enthält)
-  activeTab = foundTab || "ALL";
-  renderAll();
-
-  // Zeile finden und scrollen
-  setTimeout(()=>{
-    const rows = document.querySelectorAll("#orderTable tr[data-orderno]");
-    const tr = Array.from(rows).find(r => normalizeOrderNo(r.getAttribute("data-orderno")) === target);
-    if(tr){
-      tr.scrollIntoView({ behavior:"smooth", block:"center" });
-      flashRow(tr);
-    }
-  }, 60);
+  setTimeout(() => scrollToOrderRow("orderTable", on), 60);
 }
 
 // Springe zu Gutschrift anhand Bestellnr
+/* ---- Jump: Work -> Gutschrift ---- */
 function jumpToGutschrift(orderNo){
-  const target = normalizeOrderNo(orderNo);
-  if(!target) return;
+  const on = normalizeOrderNo(orderNo);
+  if(!on) return;
 
-  // Gutschrift öffnen
-  openAccordion("gsContent", window.toggleGutschrift);
-
-  // Tab finden: am besten Datum-Tab, sonst ALL
-  let foundDate = null;
-  if(Array.isArray(gsEntries)){
-    const hit = gsEntries.find(e => normalizeOrderNo(e.orderNo) === target);
-    if(hit && hit.date) foundDate = hit.date;
+  // Accordion öffnen wenn vorhanden
+  const gsContent = document.getElementById("gsContent");
+  if(gsContent && gsContent.style.display !== "block" && typeof toggleGutschrift === "function"){
+    toggleGutschrift();
   }
 
-  gsActiveTab = foundDate || "ALL";
-  renderGutschriftAll();
+  // passenden Eintrag finden und ggf. Datums-Tab aktivieren
+  const hit = (Array.isArray(gsEntries) ? gsEntries : []).find(x => normalizeOrderNo(x.orderNo || x.beleg || x.fo) === on);
+  if(hit && hit.date){
+    if(typeof setGsTab === "function") setGsTab(hit.date);
+    else { gsActiveTab = hit.date; renderGutschriftAll(); }
+  }else{
+    // zumindest rendern
+    if(typeof renderGutschriftAll === "function") renderGutschriftAll();
+  }
 
-  // Zeile finden und scrollen
-  setTimeout(()=>{
-    const rows = document.querySelectorAll("#gsTable tr[data-orderno]");
-    const tr = Array.from(rows).find(r => normalizeOrderNo(r.getAttribute("data-orderno")) === target);
-    if(tr){
-      tr.scrollIntoView({ behavior:"smooth", block:"center" });
-      flashRow(tr);
-    }
-  }, 60);
+  setTimeout(() => scrollToOrderRow("gsTable", on), 60);
 }
 
 // UI-Helfer: Referenz auf aktuell gerenderte Auftragsliste (damit Paket-Zuordnung in ALL/Datum/UNK funktioniert)
-let __uiOrdersRef = [];
+
 
 function renderOrders(){
-  let list = activeTab=="ALL" ? [...Object.values(days).flat()] : activeTab=="UNK" ? unknown : (days[activeTab]||[]);
+  let list =
+    activeTab=="ALL" ? [...Object.values(days).flat()] :
+    activeTab=="UNK" ? unknown :
+    (days[activeTab] || []);
+
   __uiOrdersRef = list;
 
-  orderTable.innerHTML = '<tr><th>Datum</th><th>Uhrzeit</th><th>Bestellnr</th><th>Artikel</th><th>Paket</th><th>Preis €</th></tr>';
+  orderTable.innerHTML =
+    '<tr><th>Datum</th><th>Uhrzeit</th><th>Bestellnr</th><th>Artikel</th><th>Paket</th><th>Preis €</th></tr>';
 
   list.forEach((o,i)=>{
-    let sel = '<select onchange="assignPkg(this.value,'+i+')"><option></option>';
-    packages.forEach(p=>sel += `<option ${p.name==o.package?'selected':''}>${p.name}</option>`);
+    const on = normalizeOrderNo(o.orderNo);
+
+    let sel = '<select onchange="assignPkg(this.value,'+i+')"><option value=""></option>';
+    packages.forEach(p=> sel += `<option value="${p.name}" ${p.name==o.package?'selected':''}>${p.name}</option>`);
     sel += '</select>';
 
-    const on = normalizeOrderNo(o.orderNo);
-const orderCell = on
-  ? `<button type="button" class="jump-btn" onclick="jumpToGutschrift('${on}')">${on}</button>`
-  : ``;
+    // Bestellnr-Zelle: Input + Jump( GS ) + Status
+    const orderCell = `
+      <div class="ord-cell">
+        <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
+               value="${escAttr(on)}"
+               onchange="setWorkOrderNo(${i}, this.value)">
+        ${on ? `<button type="button" class="jump-btn" onclick="jumpToGutschrift('${on}')">GS</button>` : ""}
+        ${statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`)}
+      </div>
+    `;
 
-orderTable.innerHTML += `<tr class="${o.package?'good':'bad'} ${o.slot}" data-orderno="${on}">
-  <td data-label="Datum">${o.date||''}</td>
-  <td data-label="Uhrzeit">${o.time||''}</td>
-  <td data-label="Bestellnr">${orderCell}</td>
-  <td data-label="Artikel">${o.artikel||''}</td>
-  <td data-label="Paket">${sel}</td>
-  <td data-label="Preis €">${o.price||0}</td>
-</tr>`;
-
-
+    orderTable.innerHTML += `
+      <tr class="${o.package?'good':'bad'} ${o.slot}" data-orderno="${escAttr(on)}">
+        <td data-label="Datum">${o.date||''}</td>
+        <td data-label="Uhrzeit">${o.time||''}</td>
+        <td data-label="Bestellnr">${orderCell}</td>
+        <td data-label="Artikel">${o.artikel||''}</td>
+        <td data-label="Paket">${sel}</td>
+        <td data-label="Preis €">${o.price||0}</td>
+      </tr>
+    `;
   });
 }
 
-function assignPkg(name,i){
+
+function assignPkg(name, i){
   const o = (__uiOrdersRef && __uiOrdersRef[i]) ? __uiOrdersRef[i] : null;
   if(!o) return;
 
@@ -1206,13 +1269,13 @@ function assignPkg(name,i){
   if(p){
     o.package = p.name;
     o.price = p.price;
-  } else {
+  }else{
     o.package = "";
     o.price = 0;
   }
 
-  // Wenn der Auftrag in unknown liegt und jetzt ein Paket hat -> in days verschieben
-  const unkIdx = unknown.indexOf(o);
+  // Wenn Auftrag in unknown war und jetzt Paket hat -> in days verschieben
+  const unkIdx = Array.isArray(unknown) ? unknown.indexOf(o) : -1;
   if(unkIdx !== -1 && p && o.date){
     unknown.splice(unkIdx, 1);
     days[o.date] = days[o.date] || [];
@@ -1221,6 +1284,7 @@ function assignPkg(name,i){
 
   renderAll();
 }
+
 
 function renderAll(){
   renderPackages();
@@ -1597,9 +1661,7 @@ function renderGutschriftTable(){
   }
 
   if(mode === "KM"){
-    tbl.innerHTML = `
-      <tr><th>Datum</th><th>Tour</th><th>KM</th><th>€</th></tr>
-    `;
+    tbl.innerHTML = `<tr><th>Datum</th><th>Tour</th><th>KM</th><th>€</th></tr>`;
     for(const e of (rows||[])){
       tbl.innerHTML += `
         <tr>
@@ -1614,9 +1676,7 @@ function renderGutschriftTable(){
   }
 
   if(mode === "ALT"){
-    tbl.innerHTML = `
-      <tr><th>Datum</th><th>Beleg</th><th>FO</th><th>Fahrer</th><th>Typ</th><th>€</th></tr>
-    `;
+    tbl.innerHTML = `<tr><th>Datum</th><th>Beleg</th><th>FO</th><th>Fahrer</th><th>Typ</th><th>€</th></tr>`;
     for(const e of (rows||[])){
       tbl.innerHTML += `
         <tr>
@@ -1632,36 +1692,42 @@ function renderGutschriftTable(){
     return;
   }
 
- 
- 
   // DELIVERY
+  __uiGsRowsRef = rows || [];
 
   tbl.innerHTML = `
     <tr>
-      <th>Datum</th><th>Beleg / Bestellnr</th><th>FO</th><th>Fahrer</th><th>Paket (Quelle)</th><th>€</th>
+      <th>Datum</th><th>Bestellnr/Beleg</th><th>FO</th><th>Fahrer</th><th>Paket (Quelle)</th><th>€</th>
     </tr>
   `;
 
-  for(const e of (rows || [])){
+  __uiGsRowsRef.forEach((e, i) => {
     const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
-    const orderBtn = on
-      ? `<button type="button" class="jump-btn" onclick="jumpToWork('${on}')">${on}</button>`
-      : "";
+
+    const orderCell = `
+      <div class="ord-cell">
+        <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
+               value="${escAttr(on)}"
+               onchange="setGsOrderNo(${i}, this.value)">
+        ${on ? `<button type="button" class="jump-btn" onclick="jumpToWork('${on}')">AU</button>` : ""}
+        ${statusSelectHtml(e.matchStatus || "", `setGsStatus(${i}, this.value)`)}
+      </div>
+      ${(!on && e.beleg) ? `<div class="ord-sub">${e.beleg}</div>` : ""}
+    `;
 
     tbl.innerHTML += `
-      <tr data-orderno="${on}">
+      <tr data-orderno="${escAttr(on)}">
         <td>${e.date||""}</td>
-        <td>${orderBtn || (e.beleg||"")}</td>
+        <td>${orderCell}</td>
         <td>${e.fo||""}</td>
         <td>${e.fahrer||""}</td>
         <td>${e.paketname||""}</td>
         <td>${Number(e.price||0).toFixed(2)}</td>
       </tr>
     `;
-  }
-
-
+  });
 }
+
 
 function renderGutschriftAll(){
   // wenn alles leer -> nichts anzeigen (keine Dummywerte)
@@ -1752,8 +1818,10 @@ async function readGutschriftXlsx(file){
       const price = Number(r["Preis"]||0);
       const paketname = normalizePkgName(r["Paketname"]);
       if(!date || !Number.isFinite(price)) continue;
-      const orderNo = normalizeOrderNo(beleg) || normalizeOrderNo(fo);
-entries.push({ date, beleg, fo, fahrer, price, paketname, orderNo });
+    // ... innerhalb von Table 1 loop
+const orderNo = normalizeOrderNo(beleg) || normalizeOrderNo(fo);
+entries.push({ date, beleg, fo, fahrer, price, paketname, orderNo, matchStatus:"" });
+
 
 
 
