@@ -522,8 +522,15 @@ function toggleWork(){
   const el = document.getElementById("workContent");
   if(!el) return;
 
-  el.style.display = el.style.display === "block" ? "none" : "block";
+  const isOpen = el.style.display === "block";
+  el.style.display = isOpen ? "none" : "block";
+
+  // 🔑 WICHTIG: Pakete + Dropdowns + Dashboard neu aufbauen
+  if(!isOpen){
+    renderAll();
+  }
 }
+
 
 async function loadScreenshots(files){
   try{
@@ -789,12 +796,7 @@ function addManualEntry(){
   renderAll();
 }
 
-/* Pakete beim Rendern auch hier laden */
-const _renderPackagesOld = renderPackages;
-renderPackages = function(){
-  _renderPackagesOld();
-  fillManualPackages();
-};
+
 
 /* =========================================================
    =============== GUTSCHRIFT (PDF/XLSX) ===================
@@ -1349,6 +1351,12 @@ function parseGutschriftEntriesFromText(text){
   }
   return out;
 }
+/* Pakete beim Rendern auch hier laden */
+const _renderPackagesOld = renderPackages;
+renderPackages = function(){
+  _renderPackagesOld();
+  fillManualPackages();
+};
 
 /* ---------- INIT: keine Dummywerte ---------- */
 window.addEventListener("load", ()=>{
