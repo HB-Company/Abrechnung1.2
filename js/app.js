@@ -4,7 +4,8 @@
 let pn, pp, pk, pc, symbolBtn, pkgTable;
 let tabs, dashboard, orderTable;
 let bar, progressText;
-let m_date, m_time, m_artikel, m_package;
+let m_date, m_time, m_artikel, m_package, m_order;
+
 
 window.addEventListener('load', () => {
   pn = document.getElementById('pn');
@@ -25,6 +26,8 @@ window.addEventListener('load', () => {
   m_time = document.getElementById('m_time');
   m_artikel = document.getElementById('m_artikel');
   m_package = document.getElementById('m_package');
+  m_order = document.getElementById('m_order');
+
 });
 
 
@@ -634,6 +637,7 @@ function parseOCR(text){
     matches.push({ time: m[0].replace(/\s+/g," "), idx: m.index });
   }
 
+  // Fallback: keine Time-Matches → zeilenweise
   if(matches.length === 0){
     const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
     for(const l of lines){
@@ -641,27 +645,24 @@ function parseOCR(text){
       if(!tm) continue;
 
       const time = tm[0].replace(/\s+/g," ");
-	const raw = text.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
-const orderNo = extractOrderNo(raw);
-const artikelClean = cleanArtikelOneCustomer(raw, hit.time);
+      const orderNo = extractOrderNo(l);
+      const artikelClean = cleanArtikelOneCustomer(l, time);
 
-const obj = {
-  date,
-  time: hit.time,
-  orderNo,
-  artikel: artikelClean,
-  package:"", price:0,
-  slot: hit.time.startsWith("08") ? "morning" : "afternoon"
-};
+      const obj = {
+        date, time,
+        orderNo,
+        artikel: artikelClean,
+        package:"", price:0,
+        slot: time.startsWith("08") ? "morning" : "afternoon"
+      };
 
-
-    
       if(date) days[date].push(obj);
       else unknown.push(obj);
     }
     return;
   }
 
+  // Normalfall: pro Zeitfenster chunk
   for(let i=0; i<matches.length; i++){
     const hit = matches[i];
 
@@ -669,22 +670,24 @@ const obj = {
     const nextIdx = (i < matches.length - 1) ? matches[i+1].idx : Math.min(text.length, hit.idx + 750);
 
     const raw = text.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
-const orderNo = extractOrderNo(raw); // oder l im lines-fallback
 
-const obj = {
-  date,
-  time: hit.time,
-  orderNo,
-  artikel: artikelClean,
-  package:"", price:0,
-  slot: hit.time.startsWith("08") ? "morning" : "afternoon"
-};
+    const orderNo = extractOrderNo(raw);
+    const artikelClean = cleanArtikelOneCustomer(raw, hit.time);
 
+    const obj = {
+      date,
+      time: hit.time,
+      orderNo,
+      artikel: artikelClean,
+      package:"", price:0,
+      slot: hit.time.startsWith("08") ? "morning" : "afternoon"
+    };
 
     if(date) days[date].push(obj);
     else unknown.push(obj);
   }
 }
+
 
 function cleanArtikelOneCustomer(str, currentTime){
   if(!str) return "";
