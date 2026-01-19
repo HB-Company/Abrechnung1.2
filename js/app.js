@@ -1213,31 +1213,29 @@ function renderGutschriftTable(){
   }
 
   // DELIVERY
- const oid = digitsOnly(e.orderNo || e.beleg || e.fo);
-tbl.innerHTML += `
-  <tr data-orderno="${oid}">
-    <td>${e.date||""}</td>
-    <td>${e.beleg||""}</td>
-    <td>${e.fo||""}</td>
-    <td>${e.fahrer||""}</td>
-    <td>${e.paketname||""}</td>
-    <td>${Number(e.price||0).toFixed(2)}</td>
+ 
+  // DELIVERY
+tbl.innerHTML = `
+  <tr>
+    <th>Datum</th><th>Beleg</th><th>FO</th><th>Fahrer</th><th>Paket (Quelle)</th><th>€</th>
   </tr>
 `;
 
+for(const row of (rows || [])){
+  const oid = digitsOnly(row.orderNo || row.beleg || row.fo);
 
-  for(const e of (rows||[])){
-    tbl.innerHTML += `
-      <tr>
-        <td>${e.date||""}</td>
-        <td>${e.beleg||""}</td>
-        <td>${e.fo||""}</td>
-        <td>${e.fahrer||""}</td>
-        <td>${e.paketname||""}</td>
-        <td>${Number(e.price||0).toFixed(2)}</td>
-      </tr>
-    `;
-  }
+  tbl.innerHTML += `
+    <tr data-orderno="${oid}">
+      <td>${row.date||""}</td>
+      <td>${row.beleg||""}</td>
+      <td>${row.fo||""}</td>
+      <td>${row.fahrer||""}</td>
+      <td>${row.paketname||""}</td>
+      <td>${Number(row.price||0).toFixed(2)}</td>
+    </tr>
+  `;
+}
+
 }
 
 function renderGutschriftAll(){
@@ -1331,6 +1329,7 @@ async function readGutschriftXlsx(file){
       if(!date || !Number.isFinite(price)) continue;
       const orderNo = digitsOnly(beleg) || digitsOnly(fo);
 entries.push({ date, beleg, fo, fahrer, price, paketname, orderNo });
+
 
     }
   }
