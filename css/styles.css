@@ -95,9 +95,6 @@ small{
   color:var(--muted);
   font-size: 13px;
 }
-.inner-block {
-  margin-bottom: 20px;
-}
 
 .section{
   background:var(--card);
@@ -366,3 +363,121 @@ tr.bad.afternoon{background: color-mix(in srgb, var(--bad) 70%, var(--aft) 30%)}
   margin-top:8px;
 }
 
+
+
+/* =========================================================
+   Mobile polish (iPhone friendly)
+   - bessere Tap Targets (>=44px)
+   - weniger Blur auf Mobile (Performance)
+   - Upload Card
+   - Responsive Tables -> "stacked cards" via data-label
+   ========================================================= */
+
+.section-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin: 2px 0 10px;
+}
+
+.badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:6px 10px;
+  border-radius: 999px;
+  border:1px solid var(--stroke);
+  background: rgba(255,255,255,.14);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Upload */
+.upload-card{
+  display:block;
+  border: 1.5px dashed rgba(148,163,184,.55);
+  border-radius: var(--radius);
+  background: rgba(255,255,255,.14);
+  box-shadow: var(--shadow-soft);
+  padding: 12px;
+  cursor: pointer;
+}
+.upload-card:active{transform: translateY(1px)}
+.upload-card-inner{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.upload-icon{
+  width:44px;
+  height:44px;
+  border-radius: 14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background: linear-gradient(135deg, rgba(34,197,94,.22), rgba(96,165,250,.20));
+  border: 1px solid var(--stroke);
+}
+.upload-title{font-weight:900}
+.upload-sub{color:var(--muted); font-size:12px; margin-top:2px}
+.file-input{display:none}
+
+/* Accordion tap target + focus */
+.accordion{
+  min-height: 48px;
+}
+.accordion:focus-visible{
+  outline:none;
+  box-shadow: var(--focus), var(--shadow-soft);
+}
+
+.inner-block{margin-bottom: 18px}
+
+/* Reduce blur on small devices for smoother scrolling */
+@media (max-width: 520px){
+  header{backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px)}
+  .section{backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px)}
+  .tabs{backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px)}
+}
+
+/* Responsive tables: stack rows as cards on narrow screens.
+   Requires td[data-label] in HTML output.
+*/
+@media (max-width: 720px){
+  table{min-width: 0}
+  table, thead, tbody, th, td, tr{display:block}
+  th{display:none}
+  .table-wrap{overflow: visible}
+
+  table tr{
+    border: 1px solid rgba(148,163,184,.35);
+    border-radius: var(--radius-sm);
+    margin: 10px 0;
+    background: rgba(255,255,255,.10);
+    box-shadow: var(--shadow-soft);
+  }
+
+  table td{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    border-bottom: 1px dashed rgba(148,163,184,.28);
+    padding: 10px 12px;
+  }
+  table td:last-child{border-bottom:none}
+
+  table td::before{
+    content: attr(data-label);
+    font-weight: 800;
+    color: var(--muted);
+    max-width: 44%;
+  }
+
+  /* select in table */
+  table select{
+    width: 100%;
+    min-height: 44px;
+  }
+}

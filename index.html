@@ -1,12 +1,11 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta name="theme-color" content="#22c55e">
-
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Abrechnungsprogramm</title>
 
+  <!-- OCR -->
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <!-- PDF.js für Gutschrift -->
@@ -25,12 +24,13 @@
 
 <body>
 <div class="container">
+
 <header>
   <h1>📦 Abrechnungsprogramm</h1>
   <small><b>Bismillah</b> – Im Namen Allahs, des Allerbarmers, des Barmherzigen</small>
 </header>
 
-<!-- PAKETE -->
+<!-- ================== PAKETE ================== -->
 <div class="section">
   <div class="accordion" onclick="togglePkg()" aria-expanded="false">📦 Pakete verwalten</div>
   <div id="pkgContent" class="accordion-content">
@@ -63,21 +63,22 @@
 
     <button class="primary" onclick="addPackage()">➕ Paket</button>
     <button class="ghost" onclick="exportPackages()">⬇ Pakete exportieren</button>
-    <input type="file" id="importFile" style="display:none" onchange="importPackages(this.files)">
-    <button class="ghost" onclick="document.getElementById('importFile').click()">⬆ Pakete importieren</button>
+
+    <input type="file" id="importFile" accept=".json" style="display:none"
+           onchange="importPackages(this.files)">
+    <button class="ghost" onclick="document.getElementById('importFile').click()">
+      ⬆ Pakete importieren
+    </button>
 
     <div class="table-wrap"><table id="pkgTable"></table></div>
   </div>
 </div>
 
-<!-- GUTSCHRIFT -->
+<!-- ================== GUTSCHRIFT ================== -->
 <div class="section">
-  <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">
-    📄 Gutschrift (PDF / XLSX)
-  </div>
+  <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">📄 Gutschrift (PDF / XLSX)</div>
 
   <div id="gsContent" class="accordion-content" style="display:none">
-    <!-- akzeptiert PDF und XLSX -->
     <input type="file" accept="application/pdf,.xlsx" onchange="importGutschrift(this.files)" style="width:100%">
 
     <button class="danger" onclick="clearGutschrift()" style="margin-top:8px;width:100%">
@@ -93,40 +94,98 @@
   </div>
 </div>
 
-<!-- ARBEIT (Screenshots + Übersicht + Aufträge) -->
+<!-- ================== ARBEIT (1–3) ================== -->
 <div class="section">
-<!-- ARBEIT 1–3 -->
-<div class="accordion" onclick="toggleWork()">
-  🧾 Screenshots laden
-</div>
+  <div class="accordion" onclick="toggleWork()" aria-expanded="false">🧾 Arbeit (1–3)</div>
 
-<div id="workContent" style="display:none">
+  <div id="workContent" class="accordion-content" style="display:none">
 
-  <h2>1️⃣ Screenshot hochladen</h2>
-  <input type="file" multiple accept="image/jpeg,image/png"
-         onchange="loadScreenshots(this.files)">
+    <!-- 1️⃣ Screenshots -->
+    <div class="inner-block">
+      <div class="section-title">
+        <h2>1️⃣ Screenshot hochladen</h2>
+        <span class="badge">JPG/PNG</span>
+      </div>
 
-  <div class="progress">
-    <div id="bar" class="progress-bar"></div>
+      <label class="upload-card">
+        <input class="file-input" type="file" multiple accept="image/jpeg,image/png,image/heic,image/heif"
+               onchange="loadScreenshots(this.files)">
+        <div class="upload-card-inner">
+          <div class="upload-icon">⬆️</div>
+          <div>
+            <div class="upload-title">Bilder auswählen</div>
+            <div class="upload-sub">Tippen zum Auswählen • Mehrere Bilder möglich</div>
+          </div>
+        </div>
+      </label>
+
+      <div class="progress"><div id="bar" class="progress-bar"></div></div>
+      <p id="progressText" class="helper"></p>
+    </div>
+
+    <!-- 2️⃣ Übersicht -->
+    <div class="inner-block">
+      <div class="section-title">
+        <h2>2️⃣ Übersicht</h2>
+        <span class="badge">Live</span>
+      </div>
+      <div id="dashboard" class="dashboard"></div>
+    </div>
+
+    <!-- 3️⃣ Aufträge -->
+    <div class="inner-block">
+      <div class="section-title">
+        <h2>3️⃣ Aufträge</h2>
+        <span class="badge">Tabelle</span>
+      </div>
+
+      <!-- Manueller Eintrag (Accordion) -->
+      <div class="section" style="margin:10px 0 0; padding:12px;">
+        <div class="accordion" onclick="toggleManual()" aria-expanded="false">✍️ Manueller Eintrag</div>
+        <div id="manualContent" class="accordion-content">
+          <div class="row">
+            <label>Datum</label>
+            <input id="m_date" type="date">
+          </div>
+
+          <div class="row">
+            <label>Zeitfenster</label>
+            <select id="m_time"></select>
+          </div>
+
+          <div class="row">
+            <label>Artikel / Beschreibung</label>
+            <input id="m_artikel">
+          </div>
+
+          <div class="row">
+            <label>Paket</label>
+            <select id="m_package"></select>
+          </div>
+
+          <button class="primary" onclick="addManualEntry()">➕ Eintrag hinzufügen</button>
+        </div>
+      </div>
+
+      <div id="tabs" class="tabs"></div>
+      <div class="table-wrap small-table">
+        <table id="orderTable"></table>
+      </div>
+    </div>
+
   </div>
-  <p id="progressText"></p>
-
-  <h2>2️⃣ Übersicht</h2>
-  <div id="dashboard"></div>
-
-  <h2>3️⃣ Aufträge</h2>
-  <div id="tabs"></div>
-  <table id="orderTable"></table>
-
 </div>
 
- 
+<!-- ================== CONTROLS ================== -->
+<div id="tabControls" class="section">
+  <button class="danger" onclick="location.reload()">♻ Reset</button>
+
+  <button class="ghost" onclick="exportCurrentTab()">⬇💾 Save</button>
+
+  <input type="file" id="importTabFile" accept=".json" style="display:none" onchange="importCurrentTab(this.files)">
+  <button class="ghost" onclick="document.getElementById('importTabFile').click()">⬆📁 Load</button>
 </div>
 
-
 </div>
-
-
-
 </body>
 </html>

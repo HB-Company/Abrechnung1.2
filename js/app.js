@@ -42,7 +42,6 @@ let gsInvoice = {};       // Rechnung/Brutto/MwSt usw.
 
 let gsActiveTab = "ALL";  // "ALL" | "OTHER" | "KM" | "ALT" | "INV" | "dd.mm.yyyy"
 
-
 /* ---------- PAKETE ---------- */
 function togglePkg(){
   const el = document.getElementById("pkgContent");
@@ -473,6 +472,7 @@ async function __getOcrWorker(){
 
   // Quellen: best_int ist oft kleiner; unpkg als Alternative zu jsDelivr.
   const bases = [
+    './tessdata',
     'https://cdn.jsdelivr.net/npm/@tesseract.js-data/deu@1.0.0/4.0.0_best_int',
     'https://unpkg.com/@tesseract.js-data/deu@1.0.0/4.0.0_best_int',
     'https://cdn.jsdelivr.net/npm/@tesseract.js-data/deu@1.0.0/4.0.0',
@@ -518,26 +518,6 @@ async function __getOcrWorker(){
 
   return __ocrWorkerPromise;
 }
-function toggleWork(){
-  const el = document.getElementById("workContent");
-  if(!el) return;
-
-  const opening = el.style.display !== "block";
-  el.style.display = opening ? "block" : "none";
-
-  if(opening){
-    // 🧠 iOS Safari Fix:
-    // erst sichtbar machen → dann rendern → dann nochmal rendern
-    requestAnimationFrame(() => {
-      renderAll();
-      setTimeout(() => {
-        renderAll();
-      }, 50);
-    });
-  }
-}
-
-
 
 async function loadScreenshots(files){
   try{
@@ -762,20 +742,18 @@ function toggleManual(){
   el.style.display = el.style.display === "block" ? "none" : "block";
 }
 function fillManualPackages(){
-  const sel = document.getElementById("m_package");
+  const sel = document.getElementById('m_package');
   if(!sel) return;
 
-  sel.innerHTML = "";
-  sel.appendChild(new Option("", ""));
+  // iOS Safari: Options per DOM API ist stabiler als innerHTML
+  sel.innerHTML = '';
+  sel.appendChild(new Option('', ''));
 
-  packages
-    .filter(p => p && p.show)
-    .forEach(p=>{
-      const opt = new Option(`${p.icon} ${p.name}`, p.name);
-      sel.appendChild(opt);
-    });
+  packages.forEach(p => {
+    const label = `${p.icon || '📦'} ${p.name}`;
+    sel.appendChild(new Option(label, p.name));
+  });
 }
-
 
 function addManualEntry(){
   if(!m_date.value || !m_time.value || !m_artikel.value || !m_package.value){
@@ -810,7 +788,12 @@ function addManualEntry(){
   renderAll();
 }
 
-
+/* Pakete beim Rendern auch hier laden */
+const _renderPackagesOld = renderPackages;
+renderPackages = function(){
+  _renderPackagesOld();
+  fillManualPackages();
+};
 
 /* =========================================================
    =============== GUTSCHRIFT (PDF/XLSX) ===================
@@ -832,6 +815,26 @@ function toggleGutschrift(){
     renderGutschriftAll();
   }
 }
+
+function toggleWork(){
+  const el = document.getElementById('workContent');
+  if(!el) return;
+
+  const isOpen = el.style.display === 'block';
+  el.style.display = isOpen ? 'none' : 'block';
+
+  const acc = document.querySelector(".accordion[onclick*=toggleWork]");
+  if(acc) acc.setAttribute('aria-expanded', String(!isOpen));
+
+  // iOS Safari: erst sichtbar machen, dann rendern
+  if(!isOpen){
+    requestAnimationFrame(() => {
+      renderAll();
+      setTimeout(() => renderAll(), 50);
+    });
+  }
+}
+
 
 function setGsTab(t){
   gsActiveTab = t;
@@ -1365,12 +1368,6 @@ function parseGutschriftEntriesFromText(text){
   }
   return out;
 }
-/* Pakete beim Rendern auch hier laden */
-const _renderPackagesOld = renderPackages;
-renderPackages = function(){
-  _renderPackagesOld();
-  fillManualPackages();
-};
 
 /* ---------- INIT: keine Dummywerte ---------- */
 window.addEventListener("load", ()=>{
