@@ -605,40 +605,8 @@ function ocrDigits(s){
     .replace(/[Bb]/g, "8");
 }
 
-function digitsOnly(s){
-  return ocrDigits(s).replace(/\D/g, "");
-}
 
 
-
-// Bestellnr pro Tabellen-Zeile: bevorzugt Nummer nach "Fixiert"
-function extractOrderNoFromRow(rowText){
-  const s = String(rowText || "")
-    .replace(/\u00A0/g, " ")
-    .replace(/\u202F/g, " ")
-    .replace(/\s+/g, " ");
-
-  // tolerante Erkennung von "Fixiert" inkl. OCR-Fehler:
-  // Fixiert, Fixierf, Fhriert, Fixler t, usw.
-  const m = s.match(/\b(Fix\w{0,6}t|F\w{2,8}rt)\b\s*([0-9OIlSB][0-9OIlSB\s-]{5,25})/i);
-  if(m){
-    const d = digitsOnly(m[2]);
-    if(d.length >= 6 && d.length <= 14) return d;
-  }
-
-  // Fallback: erste plausible lange Nummer (keine PLZ 5-stellig)
-  const cand = s.match(/(?:[0-9OIlSB][0-9OIlSB\s-]{6,25})/g) || [];
-  let best = "";
-  for(const c of cand){
-    const d = digitsOnly(c);
-    if(d.length >= 6 && d.length <= 14){
-      // 5-stellige PLZ aussortieren
-      if(d.length === 5) continue;
-      if(d.length > best.length) best = d;
-    }
-  }
-  return best;
-}
 
 function splitByFixiert(segment, parts){
   const reFix = /Fixiert\s+\d/g;
@@ -723,133 +691,304 @@ function detectTotalFromText(t){
   return best || 15;
 }
 
-// split segment into N parts using tolerant "Fixiert"-like anchors
-function splitByFixLike(segment, parts){
-  const s = String(segment || "");
-  const re = /\b(Fix\w{0,6}t|F\w{2,8}rt)\b\s*[0-9OIlSB]/ig;
-  const pos = [];
-  let m;
-  while((m = re.exec(s)) !== null) pos.push(m.index);
 
-  if(pos.length < parts){
-    const out = [s.trim()];
-    while(out.length < parts) out.push("");
+// split segment into N parts using tolerant "Fixiert"-like anchors + "/total" markers
+function splitByFixLike(segment, parts, total){
+  const s = String(segment || "");
+
+  // A) sehr toleranter "Fixiert"-Anker (Fixiert, Fixier, Fhriert, Fixi..., usw.)
+  const reFix = /\b(?:Fix\w{0,8}|F\w{2,10}rt)\b\s*[0-9OIlSB]/ig;
+
+  // B) Row-Marker-Anker: "<irgendwas>/<total>"
+  const reRow = total ? new RegExp(String.raw`[0-9OIlSB]{1,6}\s*\/\s*${total}\b`, "g") : null;
+
+  const pos = [];
+
+  let m;
+  while((m = reFix.exec(s)) !== null) pos.push(m.index);
+
+  if(reRow){
+    while((m = reRow.exec(s)) !== null) pos.push(m.index);
+  }
+
+  // unique + sort
+  const starts = Array.from(new Set(pos)).sort((a,b)=>a-b);
+
+  // Wenn wir genug Starts haben: exakt parts Segmente schneiden
+  if(starts.length >= parts){
+    const cut = starts.slice(0, parts);
+    const out = [];
+    for(let i=0;i<cut.length;i++){
+      const a = cut[i];
+      const b = (i < cut.length-1) ? cut[i+1] : s.length;
+      out.push(s.slice(a, b).trim());
+    }
     return out;
   }
 
-  const starts = pos.slice(0, parts);
+  // Wenn zu wenig Starts: fallback 1) nach Länge gleichmäßig teilen
+  // (besser als "eine Zeile fehlt")
   const out = [];
-  for(let i=0;i<starts.length;i++){
-    const a = starts[i];
-    const b = (i < starts.length-1) ? starts[i+1] : s.length;
+  const len = s.length;
+  for(let i=0;i<parts;i++){
+    const a = Math.floor((i * len) / parts);
+    const b = Math.floor(((i+1) * len) / parts);
     out.push(s.slice(a, b).trim());
   }
   return out;
 }
 
+
+// --- OCR Digit Helper: typische OCR-Verwechslungen korrigieren (nur in Zahlen-Kontext) ---
+function __normalizeOcrDigits(raw){
+  return String(raw || "")
+    .replace(/[Oo]/g, "0")
+    .replace(/[Il|]/g, "1")
+    .replace(/[Ss]/g, "5")
+    .replace(/[Zz]/g, "2")
+    .replace(/[Bb]/g, "8");
+}
+
+function digitsOnly(s){
+  return __normalizeOcrDigits(s).replace(/\D/g, "");
+}
+
+// --- Erwartete Zeilenzahl aus 1/15, 7/13, 10/17 etc. ---
+function __detectExpectedTotal(text){
+  const t = String(text || "");
+  const re = /([0-9IlOoSsZzBb]{1,2})\s*\/\s*(\d{1,2})/g;
+
+  const count = new Map(); // denom -> occurrences
+  let m;
+  while((m = re.exec(t)) !== null){
+    const denom = parseInt(m[2], 10);
+    if(!Number.isFinite(denom) || denom < 2 || denom > 60) continue;
+    count.set(denom, (count.get(denom) || 0) + 1);
+  }
+
+  // nimm den Nenner der am häufigsten vorkommt
+  let best = 0, bestCnt = 0;
+  for(const [den, c] of count.entries()){
+    if(c > bestCnt){
+      best = den; bestCnt = c;
+    }
+  }
+  return best || 0;
+}
+
+// --- Bestellnummer robust: bevorzugt "Fixiert <nummer>" ---
+function extractOrderNo(str){
+  const s0 = String(str || "").replace(/\u00A0/g, " ").replace(/\u202F/g, " ");
+  const s = __normalizeOcrDigits(s0);
+
+  // 1) Direkt nach (evtl. OCR-verdrehtem) "Fixiert" suchen
+  // z.B. "Fixiert 117540556520" oder "Fixlert 4114 124 3339"
+  let m = s.match(/F\s*i\s*x\s*i\s*e?\s*r\s*t[^0-9]{0,10}([0-9][0-9\s-]{6,20})/i);
+  if(m){
+    const d = digitsOnly(m[1]);
+    if(d.length >= 7 && d.length <= 14) return d;
+  }
+
+  // 2) Wenn OCR die Spalte schreibt: "Bestellung 123456789"
+  m = s.match(/Bestell(?:ung|nr|nummer)?\s*[:#]?\s*([0-9][0-9\s-]{6,20})/i);
+  if(m){
+    const d = digitsOnly(m[1]);
+    if(d.length >= 7 && d.length <= 14) return d;
+  }
+
+  // 3) Fallback: erste plausible lange Zahl (7..14), aber NICHT 1/15, nicht PLZ (5-stellig)
+  const cand = s.match(/(?:[0-9][0-9\s-]*){7,20}/g) || [];
+  let best = "";
+  for(const c of cand){
+    const d = digitsOnly(c);
+    if(d.length >= 7 && d.length <= 14){
+      if(d.length > best.length) best = d;
+    }
+  }
+  return best;
+}
+
+// --- Zeitfenster aus einem Block holen (erste passende Uhrzeit) ---
+function __extractTimeWindow(chunk){
+  const m = String(chunk || "").match(/\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/);
+  return m ? m[0].replace(/\s+/g, " ") : "";
+}
+
+// --- "Fixiert" Anker finden (um Zeilen sauber zu trennen) ---
+function __findFixAnchors(text, expectedTotal){
+  const t = String(text || "");
+
+  // sehr tolerantes "Fixiert" (mit optionalen Spaces / OCR-Schluckern)
+  const re = /F\s*i\s*x\s*i\s*e?\s*r\s*t/gi;
+
+  const anchors = [];
+  let m;
+  while((m = re.exec(t)) !== null){
+    const pos = m.index;
+
+    // nur behalten wenn kurz danach eine plausible Bestellnummer folgt
+    const look = t.slice(pos, pos + 80);
+    const d = extractOrderNo(look);
+    if(d && d.length >= 7) anchors.push(pos);
+  }
+
+  // Falls zu viele: nimm die ersten expectedTotal (meist sind die korrekt)
+  if(expectedTotal && anchors.length > expectedTotal){
+    return anchors.slice(0, expectedTotal);
+  }
+  return anchors;
+}
+
+// --- Alternativ: 1/15 Marker als Anker (falls Fixiert fehlt) ---
+function __findRowMarkers(text, expectedTotal){
+  const t = String(text || "");
+  const denom = expectedTotal || 0;
+
+  // numerator darf auch OCR-Zeichen haben (I statt 1 etc.)
+  const re = /([0-9IlOoSsZzBb]{1,2})\s*\/\s*(\d{1,2})/g;
+
+  const marks = [];
+  let m;
+  while((m = re.exec(t)) !== null){
+    const num = parseInt(__normalizeOcrDigits(m[1]).replace(/\D/g,"") || "0", 10);
+    const den = parseInt(m[2], 10);
+
+    if(!Number.isFinite(num) || !Number.isFinite(den)) continue;
+    if(den < 2 || den > 60) continue;
+    if(denom && den !== denom) continue;
+    if(num < 1 || (denom && num > denom)) continue;
+
+    marks.push({ pos: m.index, num, den });
+  }
+
+  // sortiere nach Position und entferne Duplikate derselben num
+  marks.sort((a,b)=>a.pos-b.pos);
+  const seen = new Set();
+  const out = [];
+  for(const x of marks){
+    if(seen.has(x.num)) continue;
+    seen.add(x.num);
+    out.push(x);
+  }
+  return out;
+}
+
+// ✅ NEUES parseOCR: Zeilen über Fixiert/1/15 trennen → keine Zeile “verschlucken”
 function parseOCR(text){
   if(!text) return;
 
-  const rawText = String(text)
-    .replace(/\u00A0/g, " ")
-    .replace(/\u202F/g, " ");
-
-  // Datum
+  // 1) Datum robust (auch 2-stelliges Jahr)
   let date = "";
-  const dm = rawText.match(/\b\d{2}\.\d{2}\.\d{4}\b/);
-  if(dm) date = dm[0];
+  const dm = String(text).match(/(\d{2}\.\d{2}\.\d{2,4})/);
+  if(dm){
+    date = dm[1];
+    // optional: 2-stelliges Jahr -> 20xx
+    if(date.length === 8){ // dd.mm.yy
+      const yy = date.slice(-2);
+      date = date.slice(0,6) + "20" + yy;
+    }
+  }
   if(date) days[date] = days[date] || [];
 
-  const total = detectTotalFromText(rawText);
+  // 2) Normalisieren (Spaces ok, Newlines behalten)
+  const raw = String(text).replace(/\u00A0/g, " ").replace(/\u202F/g, " ");
+  const expectedTotal = __detectExpectedTotal(raw);
 
-  // Zeilen-Anker: "<links>/<total>" (OHNE Fixiert-Pflicht!)
-  const reRow = new RegExp(String.raw`([0-9OIlSB]{1,6})\s*\/\s*${total}\b`, "g");
-  const hits = [];
-  let m;
-  while((m = reRow.exec(rawText)) !== null){
-    const idx = normalizeRowIndex(m[1], total);
-    if(idx >= 1 && idx <= total){
-      hits.push({ idx, pos: m.index });
+  // 3) Anker finden: zuerst Fixiert (am stabilsten), sonst 1/15-Marker
+  let anchors = __findFixAnchors(raw, expectedTotal);
+
+  // wenn Fixiert-Anker zu wenig → Marker probieren
+  if(expectedTotal && anchors.length < expectedTotal){
+    const marks = __findRowMarkers(raw, expectedTotal);
+    if(marks.length){
+      anchors = marks.map(x=>x.pos);
     }
   }
 
-  // Wenn keine Anker -> fallback: split nach Fixiert-like (oder gar nichts)
-  if(hits.length === 0){
-    // letzter fallback: jede Fixiert-like Zeile als Start
-    const chunks = splitByFixLike(rawText, (rawText.match(/\bFix/i) || rawText.match(/\bF\w{2,8}rt/i)) ? total : 1);
-    for(const c of chunks){
-      const orderNo = extractOrderNoFromRow(c);
-      const tm = c.match(/\b\d{2}:\d{2}\s*-\s*\d{2}:\d{2}\b/);
-      const time = tm ? tm[0].replace(/\s+/g," ") : "";
-      const artikelClean = cleanArtikelOneCustomer(c, time);
+  // wenn immer noch keine Anker → fallback: Zeitfenster-Logik wie vorher
+  if(!anchors.length){
+    const timeRe = /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/g;
+    const matches = [];
+    let mt;
+    while((mt = timeRe.exec(raw)) !== null){
+      matches.push({ time: mt[0].replace(/\s+/g," "), idx: mt.index });
+    }
+    if(matches.length === 0) return;
 
-      const obj = { date, time, orderNo, artikel: artikelClean, package:"", price:0, slot: time.startsWith("08") ? "morning" : "afternoon" };
+    for(let i=0; i<matches.length; i++){
+      const hit = matches[i];
+      const prevIdx = (i === 0) ? Math.max(0, hit.idx - 650) : matches[i-1].idx;
+      const nextIdx = (i < matches.length - 1) ? matches[i+1].idx : Math.min(raw.length, hit.idx + 750);
+      const chunk = raw.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
+
+      const orderNo = extractOrderNo(chunk);
+      const artikelClean = cleanArtikelOneCustomer(chunk, hit.time);
+
+      const obj = {
+        date,
+        time: hit.time,
+        orderNo,
+        artikel: artikelClean,
+        package: "",
+        price: 0,
+        slot: hit.time.startsWith("08") ? "morning" : "afternoon"
+      };
       if(date) days[date].push(obj); else unknown.push(obj);
     }
     return;
   }
 
-  // nach Position sortieren und erste Position je idx behalten
-  hits.sort((a,b)=>a.pos-b.pos);
-  const firstPosByIdx = new Map();
-  for(const h of hits){
-    if(!firstPosByIdx.has(h.idx)) firstPosByIdx.set(h.idx, h.pos);
+  // 4) Mit Ankern sauber in Blöcke splitten
+  anchors.sort((a,b)=>a-b);
+  const blocks = [];
+  for(let i=0;i<anchors.length;i++){
+    const start = anchors[i];
+    const end = (i < anchors.length-1) ? anchors[i+1] : raw.length;
+    const chunk = raw.slice(start, end).replace(/\s+/g," ").trim();
+    if(chunk.length > 10) blocks.push(chunk);
   }
 
-  // Ankerliste in Reihenfolge
-  const anchors = [];
-  for(let i=1;i<=total;i++){
-    if(firstPosByIdx.has(i)) anchors.push({ idx:i, pos:firstPosByIdx.get(i) });
-  }
+  // 5) Objekte bauen – und WICHTIG: wenn expectedTotal bekannt ist, niemals “weniger” anzeigen:
+  //    fehlende Zeile wird als Platzhalter eingefügt (damit du sie siehst & manuell fixen kannst)
+  const objs = [];
+  let lastTime = "";
 
-  // Zeitfenster Regex
-  const timeReG = /\b\d{2}:\d{2}\s*-\s*\d{2}:\d{2}\b/g;
-  let currentTime = "";
+  for(const chunk of blocks){
+    const time = __extractTimeWindow(chunk) || lastTime || "";
+    if(time) lastTime = time;
 
-  const pushObj = (chunk) => {
-    const tms = [...chunk.matchAll(timeReG)].map(x=>x[0].replace(/\s+/g," "));
-    if(tms.length) currentTime = tms[tms.length-1];
+    const orderNo = extractOrderNo(chunk);
+    const artikelClean = cleanArtikelOneCustomer(chunk, time);
 
-    const orderNo = extractOrderNoFromRow(chunk);
-    const artikelClean = cleanArtikelOneCustomer(chunk, currentTime);
-
-    const obj = {
+    objs.push({
       date,
-      time: currentTime,
+      time,
       orderNo,
       artikel: artikelClean,
-      package:"",
-      price:0,
-      slot: currentTime.startsWith("08") ? "morning" : "afternoon"
-    };
+      package: "",
+      price: 0,
+      slot: time.startsWith("08") ? "morning" : "afternoon"
+    });
+  }
 
-    if(date) days[date].push(obj);
-    else unknown.push(obj);
-  };
-
-  // Segmentweise: wenn Lücken zwischen idx entstehen -> splitte Segment in (need) Teile per Fixiert-like
-  for(let a=0; a<anchors.length; a++){
-    const cur = anchors[a];
-    const next = anchors[a+1];
-    const start = cur.pos;
-    const end = next ? next.pos : rawText.length;
-    const segment = rawText.slice(start, end);
-
-    const nextIdx = next ? next.idx : (total + 1);
-    const need = Math.max(1, nextIdx - cur.idx); // z.B. 4->6 => 2 Teile (4,5)
-
-    const chunks = splitByFixLike(segment, need);
-    for(let i=0;i<need;i++){
-      const c = (chunks[i] || "").replace(/\s+/g," ").trim();
-      pushObj(c);
+  // 6) Falls OCR einen Anker “verschluckt”: zeige Platzhalter, statt Zeile zu verlieren
+  if(expectedTotal && objs.length < expectedTotal){
+    const missing = expectedTotal - objs.length;
+    for(let i=0;i<missing;i++){
+      objs.push({
+        date,
+        time: lastTime || "",
+        orderNo: "",
+        artikel: "⚠️ FEHLT (OCR) – bitte manuell prüfen",
+        package: "",
+        price: 0,
+        slot: (lastTime || "").startsWith("08") ? "morning" : "afternoon"
+      });
     }
   }
 
-  // Hinweis, falls weniger als total rauskommt (aber wir skippen nichts absichtlich)
-  const got = date ? (days[date] || []).length : unknown.length;
-  if(got < total){
-    console.warn(`OCR Warnung: ${got}/${total} Zeilen erzeugt`);
-    try{ if(progressText) progressText.innerText = `⚠️ OCR: ${got}/${total} Zeilen`; }catch(e){}
+  for(const obj of objs){
+    if(date) days[date].push(obj); else unknown.push(obj);
   }
 }
 
