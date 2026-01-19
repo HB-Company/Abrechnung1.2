@@ -1213,11 +1213,18 @@ function renderGutschriftTable(){
   }
 
   // DELIVERY
-  tbl.innerHTML = `
-    <tr>
-      <th>Datum</th><th>Beleg</th><th>FO</th><th>Fahrer</th><th>Paket (Quelle)</th><th>€</th>
-    </tr>
-  `;
+ const oid = digitsOnly(e.orderNo || e.beleg || e.fo);
+tbl.innerHTML += `
+  <tr data-orderno="${oid}">
+    <td>${e.date||""}</td>
+    <td>${e.beleg||""}</td>
+    <td>${e.fo||""}</td>
+    <td>${e.fahrer||""}</td>
+    <td>${e.paketname||""}</td>
+    <td>${Number(e.price||0).toFixed(2)}</td>
+  </tr>
+`;
+
 
   for(const e of (rows||[])){
     tbl.innerHTML += `
@@ -1483,6 +1490,74 @@ function getAllOrderRows(){
   if(Array.isArray(unknown)) all.push(...unknown);
   return all;
 }
+function flashRow(tr){
+  if(!tr) return;
+  tr.classList.add("flash");
+  tr.scrollIntoView({ behavior:"smooth", block:"center" });
+  setTimeout(()=>tr.classList.remove("flash"), 1200);
+}
+
+// Aufträge öffnen + zur Bestellnr springen
+function jumpToOrders(orderNo){
+  const id = digitsOnly(orderNo);
+  if(!id) return;
+
+  // Arbeit öffnen
+  const wc = document.getElementById("workContent");
+  if(wc) wc.style.display = "block";
+
+  // passenden Auftrag finden
+  const all = [];
+  for(const d of Object.keys(days)) if(Array.isArray(days[d])) all.push(...days[d]);
+  if(Array.isArray(unknown)) all.push(...unknown);
+
+  const hit = all.find(o => digitsOnly(o.orderNo) === id);
+
+  if(hit && hit.date){
+    activeTab = hit.date;
+  } else if(hit && !hit.date){
+    activeTab = "UNK";
+  } else {
+    activeTab = "ALL";
+  }
+
+  renderAll();
+
+  // nach Render: Zeile markieren
+  requestAnimationFrame(() => {
+    const table = document.getElementById("orderTable");
+    if(!table) return;
+    const tr = table.querySelector(`td[data-label="Bestellnr"]`) 
+      ? Array.from(table.querySelectorAll("tr")).find(r => (r.innerText||"").includes(id))
+      : Array.from(table.querySelectorAll("tr")).find(r => (r.innerText||"").includes(id));
+    flashRow(tr);
+  });
+}
+
+// Gutschrift öffnen + zur Bestellnr springen
+function jumpToGutschrift(orderNo){
+  const id = digitsOnly(orderNo);
+  if(!id) return;
+
+  // Gutschrift öffnen
+  const gs = document.getElementById("gsContent");
+  if(gs) gs.style.display = "block";
+
+  // wenn möglich auf Datum-Tab springen
+  const gHit = (gsEntries || []).find(e => digitsOnly(e.orderNo || e.beleg || e.fo) === id);
+  if(gHit && gHit.date) gsActiveTab = gHit.date;
+  else gsActiveTab = "ALL";
+
+  renderGutschriftAll();
+
+  // nach Render: Zeile markieren (wir fügen gleich data-orderno hinzu)
+  requestAnimationFrame(() => {
+    const tbl = document.getElementById("gsTable");
+    if(!tbl) return;
+    const tr = tbl.querySelector(`tr[data-orderno="${id}"]`) || Array.from(tbl.querySelectorAll("tr")).find(r => (r.innerText||"").includes(id));
+    flashRow(tr);
+  });
+}
 
 function runComparison(){
   // Voraussetzungen prüfen
@@ -1661,7 +1736,14 @@ function renderCompare(){
     tbl.innerHTML += `
       <tr class="${cls}">
         <td>${r.status}</td>
-        <td>${r.orderNo||""}</td>
+        <td>
+  <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
+    <b>${r.orderNo||""}</b>
+    <button class="chip" onclick="jumpToGutschrift('${r.orderNo||""}')">GS</button>
+    <button class="chip" onclick="jumpToOrders('${r.orderNo||""}')">AUF</button>
+  </div>
+</td>
+
         <td>${r.date||""}</td>
         <td>${r.time||""}</td>
         <td>${r.artikel||""}</td>
