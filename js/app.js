@@ -218,6 +218,8 @@ function importCurrentTab(files){
         if(typeof o.artikel !== "string") o.artikel = o.artikel ? String(o.artikel) : "";
         if(typeof o.package !== "string") o.package = o.package ? String(o.package) : "";
         if(typeof o.slot !== "string") o.slot = "";
+		if(typeof o.orderNo !== "string") o.orderNo = o.orderNo ? String(o.orderNo) : "";
+
 
         const pkg = packages.find(p => p.name === o.package);
         if(pkg){
@@ -588,6 +590,19 @@ function assignPackagesAfterOCR(){
 
   renderAll();
 }
+// helpeer funktion parse für bestellnummer 
+function extractOrderNo(str){
+  const s = String(str || "");
+
+  // 1) Prefer "Bestellung 123456789" (wenn OCR die Spalte so schreibt)
+  let m = s.match(/Bestellung\s*[:#]?\s*(\d{7,12})/i);
+  if(m) return m[1];
+
+  // 2) Fallback: erste lange Ziffernfolge (kein PLZ, keine 1/15)
+  // 5-stellige PLZ ignorieren -> daher 7..12
+  m = s.match(/\b\d{7,12}\b(?!\s*\/)/);
+  return m ? m[0] : "";
+}
 
 function parseOCR(text){
   if(!text) return;
@@ -611,9 +626,18 @@ function parseOCR(text){
       if(!tm) continue;
 
       const time = tm[0].replace(/\s+/g," ");
-      const artikelClean = cleanArtikelOneCustomer(l, time);
+	  const orderNo = extractOrderNo(l);
+const artikelClean = cleanArtikelOneCustomer(l, time);
 
-      const obj = { date, time, artikel: artikelClean, package:"", price:0, slot: time.startsWith("08") ? "morning" : "afternoon" };
+const obj = {
+  date, time,
+  orderNo,
+  artikel: artikelClean,
+  package:"", price:0,
+  slot: time.startsWith("08") ? "morning" : "afternoon"
+};
+
+    
       if(date) days[date].push(obj);
       else unknown.push(obj);
     }
@@ -627,9 +651,18 @@ function parseOCR(text){
     const nextIdx = (i < matches.length - 1) ? matches[i+1].idx : Math.min(text.length, hit.idx + 750);
 
     const raw = text.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
-    const artikelClean = cleanArtikelOneCustomer(raw, hit.time);
+const orderNo = extractOrderNo(raw);
+const artikelClean = cleanArtikelOneCustomer(raw, hit.time);
 
-    const obj = { date, time: hit.time, artikel: artikelClean, package:"", price:0, slot: hit.time.startsWith("08") ? "morning" : "afternoon" };
+const obj = {
+  date,
+  time: hit.time,
+  orderNo,
+  artikel: artikelClean,
+  package:"", price:0,
+  slot: hit.time.startsWith("08") ? "morning" : "afternoon"
+};
+
     if(date) days[date].push(obj);
     else unknown.push(obj);
   }
@@ -702,7 +735,7 @@ function renderDashboard(){
 
 function renderOrders(){
   let list = activeTab=="ALL" ? [...Object.values(days).flat()] : activeTab=="UNK" ? unknown : (days[activeTab]||[]);
-  orderTable.innerHTML = '<tr><th>Datum</th><th>Zeit</th><th>Artikel</th><th>Paket</th><th>€</th></tr>';
+ orderTable.innerHTML = '<tr><th>Datum</th><th>Zeit</th><th>Bestellung</th><th>Artikel</th><th>Paket</th><th>€</th></tr>';
 
   list.forEach((o,i)=>{
     let sel = '<select onchange="assignPkg(this.value,'+i+')"><option></option>';
@@ -710,8 +743,14 @@ function renderOrders(){
     sel += '</select>';
 
     orderTable.innerHTML += `<tr class="${o.package?'good':'bad'} ${o.slot}">
-      <td>${o.date||''}</td><td>${o.time||''}</td><td>${o.artikel||''}</td><td>${sel}</td><td>${o.price||0}</td>
-    </tr>`;
+  <td>${o.date||''}</td>
+  <td>${o.time||''}</td>
+  <td>${o.orderNo||''}</td>
+  <td>${o.artikel||''}</td>
+  <td>${sel}</td>
+  <td>${o.price||0}</td>
+</tr>`;
+
   });
 }
 
@@ -756,6 +795,8 @@ function fillManualPackages(){
 }
 
 function addManualEntry(){
+	orderNo: "",
+
   if(!m_date.value || !m_time.value || !m_artikel.value || !m_package.value){
     alert("❗ Bitte alle Felder ausfüllen");
     return;
