@@ -621,6 +621,9 @@ function extractOrderNo(str){
   return best;
 }
 
+function digitsOnly(s){
+  return String(s || "").replace(/\D/g, "");
+}
 
 function parseOCR(text){
   if(!text) return;
@@ -1319,7 +1322,9 @@ async function readGutschriftXlsx(file){
       const price = Number(r["Preis"]||0);
       const paketname = normalizePkgName(r["Paketname"]);
       if(!date || !Number.isFinite(price)) continue;
-      entries.push({ date, beleg, fo, fahrer, price, paketname });
+      const orderNo = digitsOnly(beleg) || digitsOnly(fo);
+entries.push({ date, beleg, fo, fahrer, price, paketname, orderNo });
+
     }
   }
 
@@ -1446,6 +1451,229 @@ function parseGutschriftEntriesFromText(text){
   }
   return out;
 }
+// Vergleichs UI Logik
+let cmpActiveTab = "ALL";
+let cmpRows = [];
+
+function toggleCompare(){
+  const el = document.getElementById("cmpContent");
+  if(!el) return;
+
+  const isOpen = el.style.display === "block";
+  el.style.display = isOpen ? "none" : "block";
+
+  const acc = document.querySelector(".accordion[onclick*=toggleCompare]");
+  if(acc) acc.setAttribute("aria-expanded", String(!isOpen));
+}
+
+function setCmpTab(t){
+  cmpActiveTab = t;
+  renderCompare();
+}
+
+function moneyEq(a,b){
+  return Math.abs(Number(a||0) - Number(b||0)) < 0.01;
+}
+
+function getAllOrderRows(){
+  const all = [];
+  for(const d of Object.keys(days)){
+    if(Array.isArray(days[d])) all.push(...days[d]);
+  }
+  if(Array.isArray(unknown)) all.push(...unknown);
+  return all;
+}
+
+function runComparison(){
+  // Voraussetzungen prüfen
+  const orderRows = getAllOrderRows();
+  if(!orderRows.length){
+    alert("❗ Keine Aufträge vorhanden. Bitte erst Screenshots laden oder manuell Einträge erstellen.");
+    return;
+  }
+  if(!gsEntries || !gsEntries.length){
+    alert("❗ Keine Gutschrift vorhanden. Bitte erst Gutschrift (XLSX/PDF) laden.");
+    return;
+  }
+
+  // Maps bauen
+  const gsMap = new Map(); // orderNo -> [entries]
+  for(const e of gsEntries){
+    const id = digitsOnly(e.orderNo || e.beleg || e.fo);
+    if(!id) continue;
+    if(!gsMap.has(id)) gsMap.set(id, []);
+    gsMap.get(id).push(e);
+  }
+
+  const ordMap = new Map(); // orderNo -> [orders]
+  for(const o of orderRows){
+    const id = digitsOnly(o.orderNo);
+    if(!id) continue;
+    if(!ordMap.has(id)) ordMap.set(id, []);
+    ordMap.get(id).push(o);
+  }
+
+  const out = [];
+
+  // 1) Orders -> check in Gutschrift
+  for(const o of orderRows){
+    const id = digitsOnly(o.orderNo);
+    if(!id){
+      out.push({
+        status: "NO_ID",
+        orderNo: "",
+        date: o.date||"",
+        time: o.time||"",
+        artikel: o.artikel||"",
+        myPackage: o.package||"",
+        myPrice: Number(o.price||0),
+        gsPrice: null,
+        note: "Keine Bestellnr im Auftrag"
+      });
+      continue;
+    }
+
+    const matches = gsMap.get(id) || [];
+    if(matches.length === 0){
+      out.push({
+        status: "MISSING_GS",
+        orderNo: id,
+        date: o.date||"",
+        time: o.time||"",
+        artikel: o.artikel||"",
+        myPackage: o.package||"",
+        myPrice: Number(o.price||0),
+        gsPrice: null,
+        note: "Bestellnr nicht in Gutschrift"
+      });
+      continue;
+    }
+
+    // wenn mehrere, nimm erste + Hinweis
+    const g = matches[0];
+    const gsPrice = Number(g.price||0);
+
+    if(!moneyEq(o.price, gsPrice)){
+      out.push({
+        status: "PRICE_DIFF",
+        orderNo: id,
+        date: o.date||"",
+        time: o.time||"",
+        artikel: o.artikel||"",
+        myPackage: o.package||"",
+        myPrice: Number(o.price||0),
+        gsPrice,
+        note: (matches.length>1 ? `Preisabweichung (mehrfach in GS: ${matches.length})` : "Preisabweichung")
+      });
+    } else {
+      out.push({
+        status: "OK",
+        orderNo: id,
+        date: o.date||"",
+        time: o.time||"",
+        artikel: o.artikel||"",
+        myPackage: o.package||"",
+        myPrice: Number(o.price||0),
+        gsPrice,
+        note: (matches.length>1 ? `OK (mehrfach in GS: ${matches.length})` : "OK")
+      });
+    }
+  }
+
+  // 2) Gutschrift -> check missing in Orders
+  for(const [id, list] of gsMap.entries()){
+    if(!ordMap.has(id)){
+      const g = list[0];
+      out.push({
+        status: "MISSING_ORD",
+        orderNo: id,
+        date: g.date||"",
+        time: "",
+        artikel: g.paketname||"",
+        myPackage: "",
+        myPrice: null,
+        gsPrice: Number(g.price||0),
+        note: `In Gutschrift, aber nicht in Aufträgen (GS mehrfach: ${list.length})`
+      });
+    }
+  }
+
+  cmpRows = out;
+  cmpActiveTab = "ALL";
+  // Accordion automatisch öffnen
+  const content = document.getElementById("cmpContent");
+  if(content) content.style.display = "block";
+  renderCompare();
+}
+
+function renderCompare(){
+  const sumEl = document.getElementById("cmpSummary");
+  const tabEl = document.getElementById("cmpTabs");
+  const tbl = document.getElementById("cmpTable");
+  if(!sumEl || !tabEl || !tbl) return;
+
+  const counts = {
+    ALL: cmpRows.length,
+    OK: cmpRows.filter(r=>r.status==="OK").length,
+    PRICE_DIFF: cmpRows.filter(r=>r.status==="PRICE_DIFF").length,
+    MISSING_GS: cmpRows.filter(r=>r.status==="MISSING_GS").length,
+    MISSING_ORD: cmpRows.filter(r=>r.status==="MISSING_ORD").length,
+    NO_ID: cmpRows.filter(r=>r.status==="NO_ID").length
+  };
+
+  // Summary Cards
+  sumEl.innerHTML = `
+    <div class="card"><b>Gesamt</b><br>${counts.ALL}</div>
+    <div class="card"><b>✅ OK</b><br>${counts.OK}</div>
+    <div class="card"><b>⚠ Preis</b><br>${counts.PRICE_DIFF}</div>
+    <div class="card"><b>❌ Fehlt GS</b><br>${counts.MISSING_GS}</div>
+    <div class="card"><b>❌ Fehlt Aufträge</b><br>${counts.MISSING_ORD}</div>
+    <div class="card"><b>ℹ Keine Nr</b><br>${counts.NO_ID}</div>
+  `;
+
+  // Tabs
+  tabEl.innerHTML = `
+    <span class="${cmpActiveTab==='ALL'?'active':''}" onclick="setCmpTab('ALL')">Alle (${counts.ALL})</span>
+    <span class="${cmpActiveTab==='PRICE_DIFF'?'active':''}" onclick="setCmpTab('PRICE_DIFF')">⚠ Preis (${counts.PRICE_DIFF})</span>
+    <span class="${cmpActiveTab==='MISSING_GS'?'active':''}" onclick="setCmpTab('MISSING_GS')">❌ Fehlt GS (${counts.MISSING_GS})</span>
+    <span class="${cmpActiveTab==='MISSING_ORD'?'active':''}" onclick="setCmpTab('MISSING_ORD')">❌ Fehlt Aufträge (${counts.MISSING_ORD})</span>
+    <span class="${cmpActiveTab==='NO_ID'?'active':''}" onclick="setCmpTab('NO_ID')">ℹ Keine Nr (${counts.NO_ID})</span>
+    <span class="${cmpActiveTab==='OK'?'active':''}" onclick="setCmpTab('OK')">✅ OK (${counts.OK})</span>
+  `;
+
+  // Filter
+  const rows = cmpActiveTab==="ALL" ? cmpRows : cmpRows.filter(r=>r.status===cmpActiveTab);
+
+  // Table
+  tbl.innerHTML = `
+    <tr>
+      <th>Status</th><th>Bestellnr</th><th>Datum</th><th>Uhrzeit</th>
+      <th>Auftrag</th><th>Paket</th><th>Preis (App)</th><th>Preis (GS)</th><th>Hinweis</th>
+    </tr>
+  `;
+
+  for(const r of rows){
+    let cls = "";
+    if(r.status==="OK") cls="cmp-ok";
+    else if(r.status==="PRICE_DIFF") cls="cmp-warn";
+    else cls="cmp-bad";
+
+    tbl.innerHTML += `
+      <tr class="${cls}">
+        <td>${r.status}</td>
+        <td>${r.orderNo||""}</td>
+        <td>${r.date||""}</td>
+        <td>${r.time||""}</td>
+        <td>${r.artikel||""}</td>
+        <td>${r.myPackage||""}</td>
+        <td>${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
+        <td>${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
+        <td>${r.note||""}</td>
+      </tr>
+    `;
+  }
+}
+
 
 /* ---------- INIT: keine Dummywerte ---------- */
 window.addEventListener("load", ()=>{

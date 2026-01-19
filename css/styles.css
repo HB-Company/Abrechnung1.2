@@ -203,22 +203,40 @@ input:focus, select:focus, button:focus{
 }
 
 /* ---------- Tabs ---------- */
+/* ---------- Tabs (1 Zeile, horizontal scroll) ---------- */
 .tabs{
+  position: sticky;
+  top: 10px;
+  z-index: 5;
+
   display:flex;
+  flex-wrap: nowrap;
   gap:8px;
-  flex-wrap:nowrap;
-  overflow-x:auto;
-  overflow-y:hidden;
+
+  overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
+  white-space: nowrap;
+
   padding:10px;
   margin:-6px -6px 10px;
-  background: rgba(255,255,255,.07);
+
+  background: rgba(255,255,255,.06); /* transparenter */
   border:1px solid var(--stroke);
   border-radius: var(--radius-sm);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
+/* Vergleich-Status */
+.cmp-ok{ background: rgba(34,197,94,.12) !important; }
+.cmp-warn{ background: rgba(245,158,11,.14) !important; }
+.cmp-bad{ background: rgba(239,68,68,.14) !important; }
+
+
+.tabs span{
+  flex: 0 0 auto;
+}
+
 .tabs span{
   display:inline-flex;
   align-items:center;
