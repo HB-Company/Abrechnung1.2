@@ -1635,32 +1635,31 @@ function renderGutschriftTable(){
  
  
   // DELIVERY
-tbl.innerHTML = `
-  <tr>
-    <th>Datum</th><th>Beleg</th><th>FO</th><th>Fahrer</th><th>Paket (Quelle)</th><th>€</th>
-  </tr>
-`;
 
-for(const row of (rows || [])){
-  const oid = digitsOnly(row.orderNo || row.beleg || row.fo);
+  tbl.innerHTML = `
+    <tr>
+      <th>Datum</th><th>Beleg / Bestellnr</th><th>FO</th><th>Fahrer</th><th>Paket (Quelle)</th><th>€</th>
+    </tr>
+  `;
 
-const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
-const orderBtn = on
-  ? `<button type="button" class="jump-btn" onclick="jumpToWork('${on}')">${on}</button>`
-  : "";
+  for(const e of (rows || [])){
+    const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
+    const orderBtn = on
+      ? `<button type="button" class="jump-btn" onclick="jumpToWork('${on}')">${on}</button>`
+      : "";
 
-tbl.innerHTML += `
-  <tr data-orderno="${on}">
-    <td>${e.date||""}</td>
-    <td>${orderBtn || (e.beleg||"")}</td>
-    <td>${e.fo||""}</td>
-    <td>${e.fahrer||""}</td>
-    <td>${e.paketname||""}</td>
-    <td>${Number(e.price||0).toFixed(2)}</td>
-  </tr>
-`;
+    tbl.innerHTML += `
+      <tr data-orderno="${on}">
+        <td>${e.date||""}</td>
+        <td>${orderBtn || (e.beleg||"")}</td>
+        <td>${e.fo||""}</td>
+        <td>${e.fahrer||""}</td>
+        <td>${e.paketname||""}</td>
+        <td>${Number(e.price||0).toFixed(2)}</td>
+      </tr>
+    `;
+  }
 
-}
 
 }
 
