@@ -1061,6 +1061,109 @@ function renderDashboard(){
   dashboard.innerHTML = `<div class="card"><b>Aufträge</b><br>${orders.length}</div>
   <div class="card"><b>Pakete €</b><br>${pkgSum.toFixed(2)}</div>${pkgCards}`;
 }
+// ===== Jump / Scroll Helpers =====
+
+// Bestellnr normalisieren (nur Ziffern)
+function normalizeOrderNo(v){
+  return String(v || "").replace(/\D/g, "");
+}
+
+// Springt in Accordion (öffnet ihn, wenn nötig)
+function openAccordion(contentId, toggleFn){
+  const el = document.getElementById(contentId);
+  if(!el) return;
+  if(el.style.display !== "block"){
+    if(typeof toggleFn === "function") toggleFn();
+    el.style.display = "block";
+  }
+}
+
+// Markiert eine Tabellenzeile kurz
+function flashRow(tr){
+  if(!tr) return;
+  tr.classList.add("jump-flash");
+  setTimeout(()=>tr.classList.remove("jump-flash"), 1600);
+}
+
+// Springe zu Aufträge (Arbeit) anhand Bestellnr
+function jumpToWork(orderNo){
+  const target = normalizeOrderNo(orderNo);
+  if(!target) return;
+
+  // Arbeit öffnen
+  openAccordion("workContent", window.toggleWork);
+
+  // finde Auftrag (in ALL/UNK/Datum)
+  let foundTab = null;
+  let foundIndex = -1;
+
+  // days durchsuchen
+  for(const [d, list] of Object.entries(days || {})){
+    const idx = (list || []).findIndex(o => normalizeOrderNo(o.orderNo) === target);
+    if(idx !== -1){
+      foundTab = d;
+      foundIndex = idx;
+      break;
+    }
+  }
+
+  // unknown durchsuchen
+  if(foundIndex === -1 && Array.isArray(unknown)){
+    const idx = unknown.findIndex(o => normalizeOrderNo(o.orderNo) === target);
+    if(idx !== -1){
+      foundTab = "UNK";
+      foundIndex = idx;
+    }
+  }
+
+  if(foundIndex === -1){
+    alert("❗ Bestellnr nicht in Aufträge gefunden: " + target);
+    return;
+  }
+
+  // Tab setzen (damit Tabelle die Zeile enthält)
+  activeTab = foundTab || "ALL";
+  renderAll();
+
+  // Zeile finden und scrollen
+  setTimeout(()=>{
+    const rows = document.querySelectorAll("#orderTable tr[data-orderno]");
+    const tr = Array.from(rows).find(r => normalizeOrderNo(r.getAttribute("data-orderno")) === target);
+    if(tr){
+      tr.scrollIntoView({ behavior:"smooth", block:"center" });
+      flashRow(tr);
+    }
+  }, 60);
+}
+
+// Springe zu Gutschrift anhand Bestellnr
+function jumpToGutschrift(orderNo){
+  const target = normalizeOrderNo(orderNo);
+  if(!target) return;
+
+  // Gutschrift öffnen
+  openAccordion("gsContent", window.toggleGutschrift);
+
+  // Tab finden: am besten Datum-Tab, sonst ALL
+  let foundDate = null;
+  if(Array.isArray(gsEntries)){
+    const hit = gsEntries.find(e => normalizeOrderNo(e.orderNo) === target);
+    if(hit && hit.date) foundDate = hit.date;
+  }
+
+  gsActiveTab = foundDate || "ALL";
+  renderGutschriftAll();
+
+  // Zeile finden und scrollen
+  setTimeout(()=>{
+    const rows = document.querySelectorAll("#gsTable tr[data-orderno]");
+    const tr = Array.from(rows).find(r => normalizeOrderNo(r.getAttribute("data-orderno")) === target);
+    if(tr){
+      tr.scrollIntoView({ behavior:"smooth", block:"center" });
+      flashRow(tr);
+    }
+  }, 60);
+}
 
 // UI-Helfer: Referenz auf aktuell gerenderte Auftragsliste (damit Paket-Zuordnung in ALL/Datum/UNK funktioniert)
 let __uiOrdersRef = [];
@@ -1076,14 +1179,20 @@ function renderOrders(){
     packages.forEach(p=>sel += `<option ${p.name==o.package?'selected':''}>${p.name}</option>`);
     sel += '</select>';
 
-    orderTable.innerHTML += `<tr class="${o.package?'good':'bad'} ${o.slot}">
-      <td data-label="Datum">${o.date||''}</td>
-      <td data-label="Uhrzeit">${o.time||''}</td>
-      <td data-label="Bestellnr">${o.orderNo||''}</td>
-      <td data-label="Artikel">${o.artikel||''}</td>
-      <td data-label="Paket">${sel}</td>
-      <td data-label="Preis €">${o.price||0}</td>
-    </tr>`;
+    const on = normalizeOrderNo(o.orderNo);
+const orderCell = on
+  ? `<button type="button" class="jump-btn" onclick="jumpToGutschrift('${on}')">${on}</button>`
+  : ``;
+
+orderTable.innerHTML += `<tr class="${o.package?'good':'bad'} ${o.slot}" data-orderno="${on}">
+  <td data-label="Datum">${o.date||''}</td>
+  <td data-label="Uhrzeit">${o.time||''}</td>
+  <td data-label="Bestellnr">${orderCell}</td>
+  <td data-label="Artikel">${o.artikel||''}</td>
+  <td data-label="Paket">${sel}</td>
+  <td data-label="Preis €">${o.price||0}</td>
+</tr>`;
+
 
   });
 }
@@ -1523,7 +1632,7 @@ function renderGutschriftTable(){
     return;
   }
 
-  // DELIVERY
+ 
  
   // DELIVERY
 tbl.innerHTML = `
@@ -1535,16 +1644,22 @@ tbl.innerHTML = `
 for(const row of (rows || [])){
   const oid = digitsOnly(row.orderNo || row.beleg || row.fo);
 
-  tbl.innerHTML += `
-    <tr data-orderno="${oid}">
-      <td>${row.date||""}</td>
-      <td>${row.beleg||""}</td>
-      <td>${row.fo||""}</td>
-      <td>${row.fahrer||""}</td>
-      <td>${row.paketname||""}</td>
-      <td>${Number(row.price||0).toFixed(2)}</td>
-    </tr>
-  `;
+const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
+const orderBtn = on
+  ? `<button type="button" class="jump-btn" onclick="jumpToWork('${on}')">${on}</button>`
+  : "";
+
+tbl.innerHTML += `
+  <tr data-orderno="${on}">
+    <td>${e.date||""}</td>
+    <td>${orderBtn || (e.beleg||"")}</td>
+    <td>${e.fo||""}</td>
+    <td>${e.fahrer||""}</td>
+    <td>${e.paketname||""}</td>
+    <td>${Number(e.price||0).toFixed(2)}</td>
+  </tr>
+`;
+
 }
 
 }
@@ -1638,8 +1753,9 @@ async function readGutschriftXlsx(file){
       const price = Number(r["Preis"]||0);
       const paketname = normalizePkgName(r["Paketname"]);
       if(!date || !Number.isFinite(price)) continue;
-      const orderNo = digitsOnly(beleg) || digitsOnly(fo);
+      const orderNo = normalizeOrderNo(beleg) || normalizeOrderNo(fo);
 entries.push({ date, beleg, fo, fahrer, price, paketname, orderNo });
+
 
 
     }
