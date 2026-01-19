@@ -522,14 +522,21 @@ function toggleWork(){
   const el = document.getElementById("workContent");
   if(!el) return;
 
-  const isOpen = el.style.display === "block";
-  el.style.display = isOpen ? "none" : "block";
+  const opening = el.style.display !== "block";
+  el.style.display = opening ? "block" : "none";
 
-  // 🔑 WICHTIG: Pakete + Dropdowns + Dashboard neu aufbauen
-  if(!isOpen){
-    renderAll();
+  if(opening){
+    // 🧠 iOS Safari Fix:
+    // erst sichtbar machen → dann rendern → dann nochmal rendern
+    requestAnimationFrame(() => {
+      renderAll();
+      setTimeout(() => {
+        renderAll();
+      }, 50);
+    });
   }
 }
+
 
 
 async function loadScreenshots(files){
@@ -757,11 +764,18 @@ function toggleManual(){
 function fillManualPackages(){
   const sel = document.getElementById("m_package");
   if(!sel) return;
-  sel.innerHTML = "<option></option>";
-  packages.forEach(p=>{
-    sel.innerHTML += `<option value="${p.name}">${p.icon} ${p.name}</option>`;
-  });
+
+  sel.innerHTML = "";
+  sel.appendChild(new Option("", ""));
+
+  packages
+    .filter(p => p && p.show)
+    .forEach(p=>{
+      const opt = new Option(`${p.icon} ${p.name}`, p.name);
+      sel.appendChild(opt);
+    });
 }
+
 
 function addManualEntry(){
   if(!m_date.value || !m_time.value || !m_artikel.value || !m_package.value){
