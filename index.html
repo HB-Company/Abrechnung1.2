@@ -75,26 +75,6 @@
   </div>
 </div>
 
-<!-- ================== GUTSCHRIFT ================== -->
-<div class="section">
-  <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">📄 Gutschrift (PDF / XLSX)</div>
-
-  <div id="gsContent" class="accordion-content" style="display:none">
-    <input type="file" accept="application/pdf,.xlsx" onchange="importGutschrift(this.files)" style="width:100%">
-
-    <button class="danger" onclick="clearGutschrift()" style="margin-top:8px;width:100%">
-      🗑 Gutschrift löschen
-    </button>
-
-    <div id="gsDashboard" class="dashboard" style="margin-top:10px;"></div>
-    <div id="gsTabs" class="tabs" style="margin-top:10px;"></div>
-
-    <div class="table-wrap small-table">
-      <table id="gsTable"></table>
-    </div>
-  </div>
-</div>
-
 <!-- ================== ARBEIT (1–3) ================== -->
 <div class="section">
   <div class="accordion" onclick="toggleWork()" aria-expanded="false">🧾 Arbeit (1–3)</div>
@@ -204,6 +184,28 @@
 </div>
 
 </div>
+
+<!-- ================== GUTSCHRIFT ================== -->
+<div class="section">
+  <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">📄 Gutschrift (PDF / XLSX)</div>
+
+  <div id="gsContent" class="accordion-content" style="display:none">
+    <input type="file" accept="application/pdf,.xlsx" onchange="importGutschrift(this.files)" style="width:100%">
+
+    <button class="danger" onclick="clearGutschrift()" style="margin-top:8px;width:100%">
+      🗑 Gutschrift löschen
+    </button>
+
+    <div id="gsDashboard" class="dashboard" style="margin-top:10px;"></div>
+    <div id="gsTabs" class="tabs" style="margin-top:10px;"></div>
+
+    <div class="table-wrap small-table">
+      <table id="gsTable"></table>
+    </div>
+  </div>
+</div>
+
+
 <!-- ================== VERGLEICHSLISTE ================== -->
 <div class="section">
   <div class="accordion" onclick="toggleCompare()" aria-expanded="false">🔎 Vergleichsliste</div>
