@@ -19,7 +19,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
   <link rel="stylesheet" href="css/styles.css">
-  <script defer src="js/app.js?v=11"></script>
+  <script defer src="js/app.js?"></script>
 
 </head>
 
@@ -142,7 +142,8 @@
 
       <!-- Manueller Eintrag (Accordion) -->
       <div class="section" style="margin:10px 0 0; padding:12px;">
-        <div class="accordion" onclick="toggleManual()" aria-expanded="false">✍️ Manueller Eintrag</div>
+       <div class="accordion" onclick="toggleManual()" aria-expanded="false">✍️ Manueller Eintrag</div>
+	   <div id="manualContent" class="accordion-content" style="display:none">
 <div class="manual-card">
   <div class="manual-grid">
 

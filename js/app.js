@@ -632,12 +632,31 @@ function parseOCR(text){
 
   const timeRe = /\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/g;
   const matches = [];
-  let m;
-  while((m = timeRe.exec(text)) !== null){
-    matches.push({ time: m[0].replace(/\s+/g," "), idx: m.index });
+  let mt;
+  while((mt = timeRe.exec(text)) !== null){
+    matches.push({ time: mt[0].replace(/\s+/g," "), idx: mt.index });
   }
 
-  // Fallback: keine Time-Matches → zeilenweise
+  // Zentraler “Push” – hier wird artikelClean IMMER definiert
+  const pushObj = (time, chunk) => {
+    const orderNo = extractOrderNo(chunk);
+    const artikelClean = cleanArtikelOneCustomer(chunk, time);
+
+    const obj = {
+      date,
+      time,
+      orderNo,
+      artikel: artikelClean,
+      package: "",
+      price: 0,
+      slot: time.startsWith("08") ? "morning" : "afternoon"
+    };
+
+    if(date) days[date].push(obj);
+    else unknown.push(obj);
+  };
+
+  // Fallback: zeilenweise
   if(matches.length === 0){
     const lines = text.split('\n').map(l=>l.trim()).filter(Boolean);
     for(const l of lines){
@@ -645,24 +664,12 @@ function parseOCR(text){
       if(!tm) continue;
 
       const time = tm[0].replace(/\s+/g," ");
-      const orderNo = extractOrderNo(l);
-      const artikelClean = cleanArtikelOneCustomer(l, time);
-
-      const obj = {
-        date, time,
-        orderNo,
-        artikel: artikelClean,
-        package:"", price:0,
-        slot: time.startsWith("08") ? "morning" : "afternoon"
-      };
-
-      if(date) days[date].push(obj);
-      else unknown.push(obj);
+      pushObj(time, l);
     }
     return;
   }
 
-  // Normalfall: pro Zeitfenster chunk
+  // Normalfall: chunks pro Zeitfenster
   for(let i=0; i<matches.length; i++){
     const hit = matches[i];
 
@@ -670,23 +677,10 @@ function parseOCR(text){
     const nextIdx = (i < matches.length - 1) ? matches[i+1].idx : Math.min(text.length, hit.idx + 750);
 
     const raw = text.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
-
-    const orderNo = extractOrderNo(raw);
-    const artikelClean = cleanArtikelOneCustomer(raw, hit.time);
-
-    const obj = {
-      date,
-      time: hit.time,
-      orderNo,
-      artikel: artikelClean,
-      package:"", price:0,
-      slot: hit.time.startsWith("08") ? "morning" : "afternoon"
-    };
-
-    if(date) days[date].push(obj);
-    else unknown.push(obj);
+    pushObj(hit.time, raw);
   }
 }
+
 
 
 function cleanArtikelOneCustomer(str, currentTime){
