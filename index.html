@@ -190,6 +190,9 @@
   </div>
 </div>
 
+
+
+
 <!-- ================== CONTROLS ================== -->
 <div id="tabControls" class="section">
   <button class="danger" onclick="location.reload()">♻ Reset</button>
@@ -200,6 +203,29 @@
   <button class="ghost" onclick="document.getElementById('importTabFile').click()">⬆📁 Load</button>
 </div>
 
+</div>
+<!-- ================== VERGLEICHSLISTE ================== -->
+<div class="section">
+  <div class="accordion" onclick="toggleCompare()" aria-expanded="false">🔎 Vergleichsliste</div>
+
+  <div id="cmpContent" class="accordion-content" style="display:none">
+
+    <p class="helper" style="margin-top:0">
+      Vergleicht <b>Aufträge</b> mit <b>Gutschrift</b> anhand der <b>Bestellnr</b> und prüft Preis-Abweichungen.
+    </p>
+
+    <button class="primary" onclick="runComparison()" style="width:100%">
+      ▶ Vergleich starten
+    </button>
+
+    <div id="cmpSummary" class="dashboard" style="margin-top:10px;"></div>
+    <div id="cmpTabs" class="tabs" style="margin-top:10px;"></div>
+
+    <div class="table-wrap small-table">
+      <table id="cmpTable"></table>
+    </div>
+
+  </div>
 </div>
 </body>
 </html>
