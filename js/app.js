@@ -546,7 +546,9 @@ async function loadScreenshots(files){
       }
 
       __ocrStatus(`Bild ${done+1}/${files.length}: ${f.name || 'Bild'}`);
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
+const scale = isIOS ? 2 : 1.5;
       const pre = await preprocessImage(f, 2);
 
       __ocrStatus(`OCR läuft… (${done+1}/${files.length})`);
@@ -592,17 +594,30 @@ function assignPackagesAfterOCR(){
 }
 // helpeer funktion parse für bestellnummer 
 function extractOrderNo(str){
-  const s = String(str || "");
+  const s = String(str || "")
+    .replace(/\u00A0/g, " ")  // NBSP
+    .replace(/\u202F/g, " "); // narrow NBSP
 
-  // 1) Prefer "Bestellung/Bestellnr/Bestellnummer 123456789" (wenn OCR die Spalte so schreibt)
-  let m = s.match(/Bestell(?:ung|nr|nummer)?\s*[:#]?\s*(\d{7,14})/i);
-  if(m) return m[1];
+  // 1) Wenn "Bestellung/Bestellnr/Bestellnummer" im Text vorkommt:
+  let m = s.match(/Bestell(?:ung|nr|nummer)?\s*[:#]?\s*((?:\d[\s\-]*){7,20})/i);
+  if(m){
+    const digits = m[1].replace(/\D/g, "");
+    if(digits.length >= 7 && digits.length <= 14) return digits;
+  }
 
-  // 2) Fallback: erste lange Ziffernfolge (kein PLZ, keine 1/15)
-  // 5-stellige PLZ ignorieren -> daher 7..14
-  m = s.match(/\b\d{7,14}\b(?!\s*\/)/);
-  return m ? m[0] : "";
+  // 2) Fallback: finde "nummern mit evtl. Spaces" (z.B. 4114 124 3698)
+  const candidates = s.match(/(?:\d[\s\-]*){7,20}/g) || [];
+  let best = "";
+  for(const c of candidates){
+    const digits = c.replace(/\D/g, "");
+    // 5-stellige PLZ raus, Datum/Zeit raus, 1/15 raus
+    if(digits.length >= 7 && digits.length <= 14){
+      if(digits.length > best.length) best = digits;
+    }
+  }
+  return best;
 }
+
 
 function parseOCR(text){
   if(!text) return;
@@ -651,8 +666,7 @@ const obj = {
     const nextIdx = (i < matches.length - 1) ? matches[i+1].idx : Math.min(text.length, hit.idx + 750);
 
     const raw = text.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
-const orderNo = extractOrderNo(raw);
-const artikelClean = cleanArtikelOneCustomer(raw, hit.time);
+const orderNo = extractOrderNo(raw); // oder l im lines-fallback
 
 const obj = {
   date,
@@ -662,6 +676,7 @@ const obj = {
   package:"", price:0,
   slot: hit.time.startsWith("08") ? "morning" : "afternoon"
 };
+
 
     if(date) days[date].push(obj);
     else unknown.push(obj);
