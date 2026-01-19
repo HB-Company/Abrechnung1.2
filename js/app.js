@@ -1188,6 +1188,81 @@ function jumpToWork(orderNo){
 
   setTimeout(() => scrollToOrderRow("orderTable", on), 60);
 }
+function moneyEq(a, b){
+  const x = Number(a || 0);
+  const y = Number(b || 0);
+  return Math.abs(x - y) < 0.01;
+}
+
+// Setzt matchStatus in AUFTRÄGE (days/unknown) und in GUTSCHRIFT (gsEntries)
+// Regeln:
+// ✅ = gefunden + Preis passt
+// ⚠️ = gefunden + Preis abweicht
+// ❌ = nicht gefunden
+function applyCompareStatuses(){
+  // ---- Index: Gutschrift nach Bestellnr ----
+  const gsMap = new Map(); // orderNo -> entry
+  (gsEntries || []).forEach(e => {
+    const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
+    if(!on) return;
+    if(!gsMap.has(on)) gsMap.set(on, e); // ersten behalten
+  });
+
+  // ---- Index: Aufträge nach Bestellnr ----
+  const workMap = new Map(); // orderNo -> order
+  const allWork = [];
+
+  for(const d of Object.keys(days || {})){
+    const arr = Array.isArray(days[d]) ? days[d] : [];
+    for(const o of arr){
+      allWork.push(o);
+      const on = normalizeOrderNo(o.orderNo);
+      if(on && !workMap.has(on)) workMap.set(on, o);
+    }
+  }
+  if(Array.isArray(unknown)){
+    for(const o of unknown){
+      allWork.push(o);
+      const on = normalizeOrderNo(o.orderNo);
+      if(on && !workMap.has(on)) workMap.set(on, o);
+    }
+  }
+
+  // 1) Status in Aufträge setzen (gegen Gutschrift prüfen)
+  for(const o of allWork){
+    const on = normalizeOrderNo(o.orderNo);
+    if(!on){
+      o.matchStatus = "❌";
+      continue;
+    }
+    const g = gsMap.get(on);
+    if(!g){
+      o.matchStatus = "❌";
+      continue;
+    }
+    // Preisvergleich: Aufträge-Preis (o.price) gegen Gutschrift-Preis (g.price)
+    o.matchStatus = moneyEq(o.price, g.price) ? "✅" : "⚠️";
+  }
+
+  // 2) Status in Gutschrift setzen (gegen Aufträge prüfen)
+  for(const e of (gsEntries || [])){
+    const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
+    if(!on){
+      e.matchStatus = "❌";
+      continue;
+    }
+    const o = workMap.get(on);
+    if(!o){
+      e.matchStatus = "❌";
+      continue;
+    }
+    e.matchStatus = moneyEq(e.price, o.price) ? "✅" : "⚠️";
+  }
+
+  // UI refresh
+  renderAll();
+  renderGutschriftAll();
+}
 
 // Springe zu Gutschrift anhand Bestellnr
 /* ---- Jump: Work -> Gutschrift ---- */
@@ -2171,6 +2246,8 @@ function runComparison(){
   // Accordion automatisch öffnen
   const content = document.getElementById("cmpContent");
   if(content) content.style.display = "block";
+  applyCompareStatuses();
+
   renderCompare();
 }
 
