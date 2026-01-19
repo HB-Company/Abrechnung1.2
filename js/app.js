@@ -539,6 +539,8 @@ async function loadScreenshots(files){
 
     let done = 0;
     for(const f of files){
+		__ocrStatus(`Bild ${done+1}/${files.length}: ${f.name || 'Bild'}`);
+
       const t = (f?.type||'').toLowerCase();
       const n = (f?.name||'').toLowerCase();
       if(t.includes('heic')||t.includes('heif')||n.endsWith('.heic')||n.endsWith('.heif')){
@@ -732,9 +734,11 @@ function renderDashboard(){
   dashboard.innerHTML = `<div class="card"><b>Aufträge</b><br>${orders.length}</div>
   <div class="card"><b>Pakete €</b><br>${pkgSum.toFixed(2)}</div>${pkgCards}`;
 }
+let __uiOrdersRef = [];
 
 function renderOrders(){
   let list = activeTab=="ALL" ? [...Object.values(days).flat()] : activeTab=="UNK" ? unknown : (days[activeTab]||[]);
+  __uiOrdersRef = list;
  orderTable.innerHTML = '<tr><th>Datum</th><th>Zeit</th><th>Bestellung</th><th>Artikel</th><th>Paket</th><th>€</th></tr>';
 
   list.forEach((o,i)=>{
@@ -742,29 +746,44 @@ function renderOrders(){
     packages.forEach(p=>sel += `<option ${p.name==o.package?'selected':''}>${p.name}</option>`);
     sel += '</select>';
 
-    orderTable.innerHTML += `<tr class="${o.package?'good':'bad'} ${o.slot}">
-  <td>${o.date||''}</td>
-  <td>${o.time||''}</td>
-  <td>${o.orderNo||''}</td>
-  <td>${o.artikel||''}</td>
-  <td>${sel}</td>
-  <td>${o.price||0}</td>
+   orderTable.innerHTML += `<tr class="${o.package?'good':'bad'} ${o.slot}">
+  <td data-label="Datum">${o.date||''}</td>
+  <td data-label="Uhrzeit">${o.time||''}</td>
+  <td data-label="Bestellnr">${o.orderNo||''}</td>
+  <td data-label="Artikel">${o.artikel||''}</td>
+  <td data-label="Paket">${sel}</td>
+  <td data-label="Preis €">${o.price||0}</td>
 </tr>`;
 
-  });
 }
 
 function assignPkg(name,i){
-  let p=packages.find(x=>x.name==name);
-  let o=unknown[i];
-  if(!o || !p) return;
-  o.package=name;
-  o.price=p.price;
-  unknown.splice(i,1);
-  days[o.date]=days[o.date]||[];
-  days[o.date].push(o);
+  const o = __uiOrdersRef[i];
+  if(!o) return;
+
+  const p = packages.find(x=>x.name==name);
+
+  if(p){
+    o.package = p.name;
+    o.price = p.price;
+  } else {
+    o.package = "";
+    o.price = 0;
+  }
+
+  // Wenn Objekt in unknown liegt und jetzt ein Paket hat -> rüber nach days
+  const idx = unknown.indexOf(o);
+  if(idx !== -1){
+    if(p && o.date){
+      unknown.splice(idx,1);
+      days[o.date] = days[o.date] || [];
+      days[o.date].push(o);
+    }
+  }
+
   renderAll();
 }
+
 
 function renderAll(){
   renderPackages();
@@ -778,8 +797,14 @@ function renderAll(){
 function toggleManual(){
   const el = document.getElementById("manualContent");
   if(!el) return;
-  el.style.display = el.style.display === "block" ? "none" : "block";
+
+  const isOpen = el.style.display === "block";
+  el.style.display = isOpen ? "none" : "block";
+
+  const acc = document.querySelector(".accordion[onclick*=toggleManual]");
+  if(acc) acc.setAttribute("aria-expanded", String(!isOpen));
 }
+
 function fillManualPackages(){
   const sel = document.getElementById('m_package');
   if(!sel) return;
