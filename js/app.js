@@ -41,16 +41,7 @@ let gsAltEntries = [];    // Altgeräte
 let gsInvoice = {};       // Rechnung/Brutto/MwSt usw.
 
 let gsActiveTab = "ALL";  // "ALL" | "OTHER" | "KM" | "ALT" | "INV" | "dd.mm.yyyy"
-function toggleWork(){
-  const el = document.getElementById("workContent");
-  if(!el) return;
 
-  const isOpen = el.style.display === "block";
-  el.style.display = isOpen ? "none" : "block";
-
-  const acc = document.querySelector(".accordion[onclick*=toggleWork]");
-  if(acc) acc.setAttribute("aria-expanded", String(!isOpen));
-}
 
 /* ---------- PAKETE ---------- */
 function togglePkg(){
@@ -527,7 +518,16 @@ async function __getOcrWorker(){
 
   return __ocrWorkerPromise;
 }
+function toggleWork(){
+  const el = document.getElementById("workContent");
+  if(!el) return;
 
+  const isOpen = el.style.display === "block";
+  el.style.display = isOpen ? "none" : "block";
+
+  const acc = document.querySelector(".accordion[onclick*=toggleWork]");
+  if(acc) acc.setAttribute("aria-expanded", String(!isOpen));
+}
 async function loadScreenshots(files){
   try{
     if(!files || files.length === 0){
