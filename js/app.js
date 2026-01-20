@@ -759,6 +759,45 @@ function __normalizeOcrDigits(raw){
 function digitsOnly(x){
   return String(x || "").replace(/\D/g, "");
 }
+function extractOrderNoFromRow(rowText){
+  // Genau wie in der “guten alten Version”: bevorzugt "Fixiert <nummer>"
+  // (mit leichter OCR-Normalisierung, aber gleiche Logik)
+  const s0 = String(rowText || "")
+    .replace(/\u00A0/g, " ")
+    .replace(/\u202F/g, " ");
+
+  const s = s0
+    .replace(/[Oo]/g, "0")
+    .replace(/[Il|]/g, "1")
+    .replace(/[Ss]/g, "5")
+    .replace(/[Zz]/g, "2")
+    .replace(/[Bb]/g, "8");
+
+  // 1) Fixiert <digits...>
+  let m = s.match(/Fixiert\s+([0-9][0-9\s-]{6,20})/i);
+  if(m){
+    const d = digitsOnly(m[1]);
+    if(d.length >= 7 && d.length <= 14) return d;
+  }
+
+  // 2) Fallback: Bestellung/Bestellnr/Bestellnummer <digits...>
+  m = s.match(/Bestell(?:ung|nr|nummer)?\s*[:#]?\s*([0-9][0-9\s-]{6,20})/i);
+  if(m){
+    const d = digitsOnly(m[1]);
+    if(d.length >= 7 && d.length <= 14) return d;
+  }
+
+  // 3) letzter Fallback: deine bestehende extractOrderNo nutzen (falls vorhanden)
+  try{
+    if(typeof extractOrderNo === "function"){
+      const d = extractOrderNo(s);
+      if(d) return d;
+    }
+  }catch(e){}
+
+  return "";
+}
+
 
 // --- Erwartete Zeilenzahl aus 1/15, 7/13, 10/17 etc. ---
 function __detectExpectedTotal(text){
@@ -824,8 +863,6 @@ function __extractTimeWindow(chunk){
 // --- "Fixiert" Anker finden (um Zeilen sauber zu trennen) ---
 function __findFixAnchors(text, expectedTotal){
   const t = String(text || "");
-
-  // sehr tolerantes "Fixiert" (mit optionalen Spaces / OCR-Schluckern)
   const re = /F\s*i\s*x\s*i\s*e?\s*r\s*t/gi;
 
   const anchors = [];
@@ -833,52 +870,42 @@ function __findFixAnchors(text, expectedTotal){
   while((m = re.exec(t)) !== null){
     const pos = m.index;
 
-    // nur behalten wenn kurz danach eine plausible Bestellnummer folgt
-    const look = t.slice(pos, pos + 80);
-    const d = extractOrderNo(look);
+    // WICHTIG: hier NICHT irgendeine Zahl nehmen,
+    // sondern nur "Fixiert <Bestellnr>" Logik:
+    const look = t.slice(pos, pos + 120);
+    const d = extractOrderNoFromRow(look);
     if(d && d.length >= 7) anchors.push(pos);
   }
 
-  // Falls zu viele: nimm die ersten expectedTotal (meist sind die korrekt)
   if(expectedTotal && anchors.length > expectedTotal){
     return anchors.slice(0, expectedTotal);
   }
   return anchors;
 }
 
+
 // --- Alternativ: 1/15 Marker als Anker (falls Fixiert fehlt) ---
 function __findRowMarkers(text, expectedTotal){
   const t = String(text || "");
   const denom = expectedTotal || 0;
 
-  // numerator darf auch OCR-Zeichen haben (I statt 1 etc.)
-  const re = /([0-9IlOoSsZzBb]{1,2})\s*\/\s*(\d{1,2})/g;
+  const re = /([0-9IlOoSsZzBb]{1,6})\s*\/\s*(\d{1,2})\b/g;
 
-  const marks = [];
+  const out = [];
   let m;
   while((m = re.exec(t)) !== null){
-    const num = parseInt(__normalizeOcrDigits(m[1]).replace(/\D/g,"") || "0", 10);
     const den = parseInt(m[2], 10);
-
-    if(!Number.isFinite(num) || !Number.isFinite(den)) continue;
-    if(den < 2 || den > 60) continue;
+    if(!Number.isFinite(den) || den < 2 || den > 60) continue;
     if(denom && den !== denom) continue;
-    if(num < 1 || (denom && num > denom)) continue;
 
-    marks.push({ pos: m.index, num, den });
+    // NICHT deduplizieren nach numerator!
+    out.push({ pos: m.index, den });
   }
 
-  // sortiere nach Position und entferne Duplikate derselben num
-  marks.sort((a,b)=>a.pos-b.pos);
-  const seen = new Set();
-  const out = [];
-  for(const x of marks){
-    if(seen.has(x.num)) continue;
-    seen.add(x.num);
-    out.push(x);
-  }
+  out.sort((a,b)=>a.pos-b.pos);
   return out;
 }
+
 
 // ✅ NEUES parseOCR: Zeilen über Fixiert/1/15 trennen → keine Zeile “verschlucken”
 function parseOCR(text){
@@ -928,7 +955,8 @@ function parseOCR(text){
       const nextIdx = (i < matches.length - 1) ? matches[i+1].idx : Math.min(raw.length, hit.idx + 750);
       const chunk = raw.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
 
-      const orderNo = extractOrderNo(chunk);
+      const orderNo = extractOrderNoFromRow(chunk);   // oder raw / l / block – je nachdem wie die Variable dort heißt
+
       const artikelClean = cleanArtikelOneCustomer(chunk, hit.time);
 
       const obj = {
@@ -964,7 +992,8 @@ function parseOCR(text){
     const time = __extractTimeWindow(chunk) || lastTime || "";
     if(time) lastTime = time;
 
-    const orderNo = extractOrderNo(chunk);
+   const orderNo = extractOrderNoFromRow(chunk);   // oder raw / l / block – je nachdem wie die Variable dort heißt
+
     const artikelClean = cleanArtikelOneCustomer(chunk, time);
 
     objs.push({
