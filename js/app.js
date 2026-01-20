@@ -758,8 +758,16 @@ function __normalizeOcrDigits(raw){
 }
 
 function digitsOnly(x){
-  return __normalizeOcrDigits(x).replace(/\D/g, "");
+  // OCR-Ziffern normalisieren (O->0, I/l/|->1, S->5, Z->2, B->8)
+  const s = String(x || "")
+    .replace(/[Oo]/g, "0")
+    .replace(/[Il|]/g, "1")
+    .replace(/[Ss]/g, "5")
+    .replace(/[Zz]/g, "2")
+    .replace(/[Bb]/g, "8");
+  return s.replace(/\D/g, "");
 }
+
 
 /**
  * Bestellnr pro "Auftrags-Block" / Zeile extrahieren.
@@ -773,40 +781,86 @@ function extractOrderNoFromRow(rowText){
     .replace(/\s+/g, " ")
     .trim();
 
-  const s = __normalizeOcrDigits(s0);
+  // OCR-„Ziffern“ normalisieren, aber Text behalten
+  const s = s0
+    .replace(/[Oo]/g, "0")
+    .replace(/[Il|]/g, "1")
+    .replace(/[Ss]/g, "5")
+    .replace(/[Zz]/g, "2")
+    .replace(/[Bb]/g, "8");
 
-  // 1) "Fixiert" OCR-tolerant: Fix..., Fhriert, Fixlert etc.
-  // Wir holen NUR in einem kurzen Lookahead-Fenster nach dem Match die Ziffern.
-  const fixRe = /\b(?:Fix\w{0,8}|F\w{2,10}rt)\b/ig;
-  let m;
-  while((m = fixRe.exec(s)) !== null){
-    const after = s.slice(m.index, m.index + 60); // <- wichtig: kleines Fenster!
-    const n = after.match(/(?:Fix\w{0,8}|F\w{2,10}rt)[^0-9]{0,10}([0-9][0-9 \-]{6,20})/i);
-    if(n){
-      const d = digitsOnly(n[1]);
-      if(d.length >= 7 && d.length <= 14) return d;
+  // Helfer: validiere 9–12
+  const asValid = (raw) => {
+    const d = digitsOnly(raw);
+    return (d.length >= 9 && d.length <= 12) ? d : "";
+  };
+
+  // A) Häufigster sicherer Fall: „Fixiert … <Bestellnr> …“
+  // (deine Screenshots haben Fixiert oft in der Zeile – manchmal am Ende)
+  {
+    const m = s.match(/\bFix\w{0,10}\b[^0-9]{0,25}([0-9][0-9 \-]{8,25})/i);
+    if(m){
+      const v = asValid(m[1]);
+      if(v) return v;
     }
   }
 
-  // 2) Falls OCR wirklich die Spalte "Bestellung" schreibt
-  // (auch hier: kleines Fenster nach dem Wort)
-  const b = s.match(/Bestell(?:ung|nr|nummer)?[^0-9]{0,10}([0-9][0-9 \-]{6,20})/i);
-  if(b){
-    const d = digitsOnly(b[1]);
-    if(d.length >= 7 && d.length <= 14) return d;
+  // B) Layout-Variante wie 03.11: „1/15 1 41141243698 08:00-14:00 … Fixiert“
+  // => Nimm die Zahl direkt nach „x/yy (optional kleine Zahl)“
+  {
+    const m = s.match(/\b[0-9]{1,2}\s*\/\s*[0-9]{1,2}\b\s+[0-9]{0,2}\s+([0-9][0-9 \-]{8,25})/);
+    if(m){
+      const v = asValid(m[1]);
+      if(v) return v;
+    }
   }
 
-  // 3) Fallback: erste "gute" lange Zahl (7..14), aber NICHT die /15 Marker
-  // => wir ignorieren direkt Muster wie 7/15
-  const cands = s.match(/(?:\d[\d \-]*){7,20}/g) || [];
-  for(const c of cands){
-    if(/\d+\s*\/\s*\d+/.test(c)) continue; // 7/15 usw
-    const d = digitsOnly(c);
-    if(d.length >= 7 && d.length <= 14) return d;
+  // C) Wenn OCR wirklich „Bestellung“ schreibt
+  {
+    const m = s.match(/\bBestell(?:ung|nr|nummer)?\b[^0-9]{0,25}([0-9][0-9 \-]{8,25})/i);
+    if(m){
+      const v = asValid(m[1]);
+      if(v) return v;
+    }
+  }
+
+  // D) Generischer Fallback: suche alle 9–12-stelligen Zahlen (ohne /15 Marker)
+  // und wähle die, die am „nächsten“ am Zeitfenster steht (Spalte daneben)
+  const timePos = s.search(/\d{2}:\d{2}\s*-\s*\d{2}:\d{2}/);
+  const fixPosMatch = s.match(/\bFix\w{0,10}\b/i);
+  const fixPos = fixPosMatch ? s.indexOf(fixPosMatch[0]) : -1;
+
+  const candidates = [];
+  const re = /[0-9][0-9 \-]{8,25}[0-9]/g;
+  let m;
+  while((m = re.exec(s)) !== null){
+    const rawNum = m[0];
+
+    // Ignoriere Dinge wie "7/15"
+    if(/\d+\s*\/\s*\d+/.test(rawNum)) continue;
+
+    const v = asValid(rawNum);
+    if(!v) continue;
+
+    candidates.push({ v, pos: m.index });
+  }
+
+  if(candidates.length === 1) return candidates[0].v;
+
+  if(candidates.length > 1){
+    const score = (c) => {
+      let best = 1e9;
+      if(timePos !== -1) best = Math.min(best, Math.abs(c.pos - timePos));
+      if(fixPos !== -1)  best = Math.min(best, Math.abs(c.pos - fixPos));
+      return best;
+    };
+    candidates.sort((a,b)=> score(a) - score(b));
+    return candidates[0].v;
   }
 
   return "";
 }
+
 
 
 
@@ -1164,11 +1218,11 @@ function renderDashboard(){
 // Bestellnr normalisieren (nur Ziffern)
 function normalizeOrderNo(x){
   const d = digitsOnly(x);
-  // Bestellnr ist bei dir meist 9–11, aber wir lassen 7–14 zu (OCR schwankt)
-  if(d.length < 7) return "";
-  if(d.length > 14) return d.slice(0, 14);
+  // HART: Bestellnr soll 9–12-stellig sein
+  if(d.length < 9 || d.length > 12) return "";
   return d;
 }
+
 function escAttr(s){
   return String(s || "").replace(/"/g, "&quot;");
 }
