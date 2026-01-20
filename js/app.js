@@ -1380,26 +1380,48 @@ function jumpToGutschrift(orderNo){
 
   setTimeout(() => scrollToOrderRow("gsTable", on), 60);
 }
-let __statusFilterSet = new Set(["✅","⚠️","❌"]);
 
-function setStatusFilter(){
-  const wrap = document.getElementById("statusFilter");
-  if(!wrap) return;
-  const checked = Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked'))
-    .map(x => x.value);
-  __statusFilterSet = new Set(checked);
-  renderOrders(); // nur Tabelle neu zeichnen (schneller)
+function renderGsStatusFilters(){
+  const el = document.getElementById("gsStatusFilters");
+  if(!el) return;
+
+  const mk = (sym) => `
+    <label class="sf-item">
+      <input type="checkbox" ${gsStatusFilter.has(sym) ? "checked" : ""} 
+             onchange="toggleGsStatusFilter('${sym}', this.checked)">
+      <span>${sym}</span>
+    </label>
+  `;
+
+  el.innerHTML = `
+    <div class="sf-title">Filter:</div>
+    ${mk("✅")}
+    ${mk("⚠️")}
+    ${mk("❌")}
+  `;
 }
+
+function toggleGsStatusFilter(sym, checked){
+  if(checked) gsStatusFilter.add(sym);
+  else gsStatusFilter.delete(sym);
+  renderGutschriftAll(); // nur GS neu
+}
+
+
 
 // UI-Helfer: Referenz auf aktuell gerenderte Auftragsliste (damit Paket-Zuordnung in ALL/Datum/UNK funktioniert)
 function renderOrders(){
+	 renderWorkStatusFilters(); // ✅ NEU: Filterleiste rende
+	 
   let list =
     activeTab=="ALL" ? [...Object.values(days).flat()] :
     activeTab=="UNK" ? unknown :
     (days[activeTab] || []);
+	
+	  list = list.filter(o => workStatusFilter.has(__statusForFilter(o.matchStatus)));
 	// Status-Filter anwenden (matchStatus: ✅ ⚠️ ❌)
-if(__statusFilterSet && __statusFilterSet.size){
-  list = (list || []).filter(o => __statusFilterSet.has(o.matchStatus || "❌"));
+if(gsStatusFilter    && gsStatusFilter   .size){
+  list = (list || []).filter(o => gsStatusFilter   .has(o.matchStatus || "❌"));
 }
 
 
@@ -1545,6 +1567,18 @@ renderPackages = function(){
   _renderPackagesOld();
   fillManualPackages();
 };
+
+// Checkbox Gutschrift
+let __gsStatusFilterSet = new Set(["✅","⚠️","❌"]);
+
+function setGsStatusFilter(){
+  const wrap = document.getElementById("gsStatusFilter");
+  if(!wrap) return;
+  const checked = Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked'))
+    .map(x => x.value);
+  __gsStatusFilterSet = new Set(checked);
+  renderGutschriftAll(); // Gutschrift neu zeichnen
+}
 
 /* =========================================================
    =============== GUTSCHRIFT (PDF/XLSX) ===================
@@ -1842,6 +1876,8 @@ function renderGutschriftTable(){
   const vr = getVisibleRowsForGsTable();
   const mode = vr.mode;
   const rows = vr.rows || [];
+  let filtered = rows || [];
+filtered = filtered.filter(e => gsStatusFilter.has(__statusForFilter(e.matchStatus)));
 
   // INV
   if(mode === "INV"){
@@ -1896,8 +1932,13 @@ function renderGutschriftTable(){
     return;
   }
 
+
   // DELIVERY (mit edit + Jump AU + Status)
-  __uiGsRowsRef = rows;
+  __uiGsRowsRef = filtered;
+  // DELIVERY Filter für Tabelle  Gutschrift
+ 
+
+
 
   const html = [];
   html.push(
@@ -1906,8 +1947,8 @@ function renderGutschriftTable(){
     `</tr>`
   );
 
-  for(let i=0;i<rows.length;i++){
-    const e = rows[i] || {};
+  for(let i=0;i<filtered.length;i++){
+    const e = filtered[i] || {};
     const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
 
     const orderCell =
@@ -1933,25 +1974,63 @@ function renderGutschriftTable(){
 
   tbl.innerHTML = html.join("");
 }
+// ===== Status Filter (Aufträge / Gutschrift) =====
+let workStatusFilter = new Set(["✅","⚠️","❌"]);
+let gsStatusFilter   = new Set(["✅","⚠️","❌"]);
+
+function __statusForFilter(v){
+  const s = String(v || "").trim();
+  if(s === "✅" || s === "⚠️" || s === "❌") return s;
+  // wenn noch kein Vergleich gelaufen ist -> behandeln wie ❌ (oder ändere auf "" wenn du willst)
+  return "❌";
+}
+
+function renderWorkStatusFilters(){
+  const el = document.getElementById("workStatusFilters");
+  if(!el) return;
+
+  const mk = (sym) => `
+    <label class="sf-item">
+      <input type="checkbox" ${workStatusFilter.has(sym) ? "checked" : ""} 
+             onchange="toggleWorkStatusFilter('${sym}', this.checked)">
+      <span>${sym}</span>
+    </label>
+  `;
+
+  el.innerHTML = `
+    <div class="sf-title">Filter:</div>
+    ${mk("✅")}
+    ${mk("⚠️")}
+    ${mk("❌")}
+  `;
+}
+
+function toggleWorkStatusFilter(sym, checked){
+  if(checked) workStatusFilter.add(sym);
+  else workStatusFilter.delete(sym);
+  renderOrders(); // nur Tabelle neu, nicht renderAll (schneller, weniger Hänger)
+}
 
 
 
 function renderGutschriftAll(){
-  // wenn alles leer -> nichts anzeigen (keine Dummywerte)
+  // ✅ Filter + Tabs IMMER rendern (auch wenn leer)
+  renderGsStatusFilters();
+  renderGutschriftTabs();
+
+  // wenn alles leer -> Tabellen/Dashboard leer
   if(!gsEntries.length && !gsKmEntries.length && !gsAltEntries.length && !Object.keys(gsInvoice||{}).length){
     const dash = document.getElementById("gsDashboard");
-    const tabs = document.getElementById("gsTabs");
     const tbl  = document.getElementById("gsTable");
     if(dash) dash.innerHTML = "";
-    if(tabs) tabs.innerHTML = "";
     if(tbl)  tbl.innerHTML = "";
     return;
   }
 
-  renderGutschriftTabs();
   renderGutschriftDashboard();
   renderGutschriftTable();
 }
+
 //Helfer für Progress 
 function __setProg(barEl, textEl, frac, msg){
   try{

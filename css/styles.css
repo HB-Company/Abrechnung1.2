@@ -632,3 +632,18 @@ tr.bad.afternoon{background: color-mix(in srgb, var(--bad) 70%, var(--aft) 30%)}
   width:18px;
   height:18px;
 }
+.status-filters{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+  margin: 6px 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.10);
+}
+.sf-title{ font-weight:800; color: var(--muted); }
+.sf-item{ display:flex; align-items:center; gap:6px; }
+.sf-item input{ width:18px; height:18px; }
+

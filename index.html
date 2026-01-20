@@ -160,11 +160,9 @@
 </div>
 
       </div>
-<div id="statusFilter" class="status-filter">
-  <label><input type="checkbox" value="✅" checked onchange="setStatusFilter()"> ✅</label>
-  <label><input type="checkbox" value="⚠️" checked onchange="setStatusFilter()"> ⚠️</label>
-  <label><input type="checkbox" value="❌" checked onchange="setStatusFilter()"> ❌</label>
-</div>
+
+
+<div id="workStatusFilters" class="status-filters"></div>
 
       <div id="tabs" class="tabs"></div>
       <div class="table-wrap small-table">
@@ -190,28 +188,40 @@
   <button class="ghost" onclick="document.getElementById('importWorkFile').click()">⬆📁 Load </button>
 </div>
 
+
 <!-- ================== GUTSCHRIFT ================== -->
 <div class="section">
-  <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">📄 Gutschrift (PDF / XLSX)</div>
+  <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">
+    📄 Gutschrift (PDF / XLSX)
+  </div>
 
   <div id="gsContent" class="accordion-content" style="display:none">
-    <input type="file" accept="application/pdf,.xlsx" onchange="importGutschrift(this.files)" style="width:100%">
-	<div class="progress"><div id="gsBar" class="progress-bar"></div></div>
-<p id="gsProgressText" class="helper"></p>
 
+    <input type="file" accept="application/pdf,.xlsx"
+           onchange="importGutschrift(this.files)" style="width:100%">
+
+    <div class="progress"><div id="gsBar" class="progress-bar"></div></div>
+    <p id="gsProgressText" class="helper"></p>
 
     <button class="danger" onclick="clearGutschrift()" style="margin-top:8px;width:100%">
       🗑 Gutschrift löschen
     </button>
 
     <div id="gsDashboard" class="dashboard" style="margin-top:10px;"></div>
+
+    <!-- ✅ HIER: Filterleiste -->
+    <div id="gsStatusFilters" class="status-filters" style="margin-top:10px;"></div>
+
+    <!-- ✅ HIER: Tabs (du brauchst das Element!) -->
     <div id="gsTabs" class="tabs" style="margin-top:10px;"></div>
 
-    <div class="table-wrap small-table">
+    <div class="table-wrap small-table" style="margin-top:10px;">
       <table id="gsTable"></table>
     </div>
+
   </div>
 </div>
+
 
 
 <!-- ================== VERGLEICHSLISTE ================== -->
