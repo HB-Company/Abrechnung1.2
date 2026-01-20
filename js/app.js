@@ -2126,6 +2126,14 @@ function jumpToGutschrift(orderNo){
     flashRow(tr);
   });
 }
+function cmpStatusToEmoji(s){
+  // Status aus runComparison -> Emoji
+  if(s === "OK") return "✅";
+  if(s === "PRICE_DIFF") return "⚠️";
+  // alles was fehlt oder keine ID -> ❌
+  if(s === "MISSING_GS" || s === "MISSING_ORD" || s === "NO_ID") return "❌";
+  return "";
+}
 
 function runComparison(){
   // Voraussetzungen prüfen
@@ -2150,7 +2158,9 @@ function runComparison(){
 
   const ordMap = new Map(); // orderNo -> [orders]
   for(const o of orderRows){
-    const id = digitsOnly(o.orderNo);
+    const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
+
+
     if(!id) continue;
     if(!ordMap.has(id)) ordMap.set(id, []);
     ordMap.get(id).push(o);
@@ -2160,7 +2170,9 @@ function runComparison(){
 
   // 1) Orders -> check in Gutschrift
   for(const o of orderRows){
-    const id = digitsOnly(o.orderNo);
+    const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
+
+
     if(!id){
       out.push({
         status: "NO_ID",
@@ -2242,13 +2254,22 @@ function runComparison(){
   }
 
   cmpRows = out;
-  cmpActiveTab = "ALL";
-  // Accordion automatisch öffnen
-  const content = document.getElementById("cmpContent");
-  if(content) content.style.display = "block";
-  applyCompareStatuses();
 
-  renderCompare();
+// ✅ Status direkt in Vergleichsliste übernehmen
+for(const r of cmpRows){
+  r.matchStatus = cmpStatusToEmoji(r.status);
+}
+
+cmpActiveTab = "ALL";
+// Accordion automatisch öffnen
+const content = document.getElementById("cmpContent");
+if(content) content.style.display = "block";
+
+// ✅ setzt Status auch in AUFTRÄGE + GUTSCHRIFT
+applyCompareStatuses();
+
+renderCompare();
+
 }
 
 function renderCompare(){
