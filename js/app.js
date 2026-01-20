@@ -1527,11 +1527,13 @@ const orderCell = `
 
     ${on ? `<button type="button" class="jump-btn" data-jump="GS" onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
 
-    <button type="button" class="jump-btn" data-jump="VG"
-            onclick="jumpTo('VG','${on}','AUF')"
-            ${vgEnabled ? "" : "disabled"}>
-      VG
-    </button>
+ <button type="button" class="jump-btn" data-jump="VG"
+        onclick="jumpTo('VG','${escAttr(on)}','GS')"
+        ${vgEnabled ? "" : "disabled"}>
+  VG
+</button>
+
+
 
     ${statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`)}
   </div>
