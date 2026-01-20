@@ -1355,31 +1355,91 @@ function applyCompareStatuses(){
   renderAll();
   renderGutschriftAll();
 }
-
+function jumpToGutschrift(orderNo){ return jumpTo("GS", orderNo, "AUF"); }   // Ziel GS -> blinkt AU
+function jumpToWork(orderNo){      return jumpTo("AUF", orderNo, "GS"); }    // Ziel AUF -> blinkt GS
+function jumpToOrders(orderNo){    return jumpTo("AUF", orderNo, "GS"); }    // alias
+function jumpToCompare(orderNo, fromTag){ return jumpTo("VG", orderNo, fromTag || ""); }
 // Springe zu Gutschrift anhand Bestellnr
 /* ---- Jump: Work -> Gutschrift ---- */
-function jumpToGutschrift(orderNo){
+function jumpTo(target, orderNo, fromTag){
+  __ensureDom && __ensureDom();
+
   const on = normalizeOrderNo(orderNo);
   if(!on) return;
 
-  // Accordion öffnen wenn vorhanden
-  const gsContent = document.getElementById("gsContent");
-  if(gsContent && gsContent.style.display !== "block" && typeof toggleGutschrift === "function"){
-    toggleGutschrift();
+  // === Ziel: Gutschrift ===
+  if(target === "GS"){
+    __openContent("gsContent", "toggleGutschrift");
+
+    const hit = (Array.isArray(gsEntries) ? gsEntries : [])
+      .find(e => normalizeOrderNo(e.orderNo || e.beleg || e.fo) === on);
+
+    if(!hit || !hit.date){
+      alert("❗ In Gutschrift nicht gefunden: " + on);
+      return;
+    }
+
+    // ✅ IMMER Tages-Tab
+    gsActiveTab = hit.date;
+    renderGutschriftAll();
+
+    setTimeout(() => __scrollFlashAndMark("gsTable", on, fromTag), 90);
+    return;
   }
 
-  // passenden Eintrag finden und ggf. Datums-Tab aktivieren
-  const hit = (Array.isArray(gsEntries) ? gsEntries : []).find(x => normalizeOrderNo(x.orderNo || x.beleg || x.fo) === on);
-  if(hit && hit.date){
-    if(typeof setGsTab === "function") setGsTab(hit.date);
-    else { gsActiveTab = hit.date; renderGutschriftAll(); }
-  }else{
-    // zumindest rendern
-    if(typeof renderGutschriftAll === "function") renderGutschriftAll();
+  // === Ziel: Arbeit/Aufträge ===
+  if(target === "AUF"){
+    __openContent("workContent", "toggleWork");
+
+    let foundTab = "";
+
+    for(const d of Object.keys(days || {})){
+      const arr = Array.isArray(days[d]) ? days[d] : [];
+      if(arr.some(o => normalizeOrderNo(o.orderNo) === on)){
+        foundTab = d; break;
+      }
+    }
+    if(!foundTab && Array.isArray(unknown) && unknown.some(o => normalizeOrderNo(o.orderNo) === on)){
+      foundTab = "UNK";
+    }
+
+    if(!foundTab){
+      alert("❗ In Aufträgen nicht gefunden: " + on);
+      return;
+    }
+
+    // ✅ IMMER Tages-Tab (oder UNK)
+    activeTab = foundTab;
+    renderAll();
+
+    setTimeout(() => __scrollFlashAndMark("orderTable", on, fromTag), 90);
+    return;
   }
 
-  setTimeout(() => scrollToOrderRow("gsTable", on), 60);
+  // === Ziel: Vergleich ===
+  if(target === "VG"){
+    if(!isCompareReady()){
+      alert("❗ Vergleichsliste ist noch leer. Bitte erst Vergleich starten.");
+      return;
+    }
+
+    __openContent("cmpContent", "toggleCompare");
+
+    const hit = (cmpRows || []).find(r => normalizeOrderNo(r.orderNo) === on);
+    if(!hit){
+      alert("❗ In Vergleichsliste nicht gefunden: " + on);
+      return;
+    }
+
+    // ✅ Tab passend zum Status (damit der Eintrag garantiert sichtbar ist)
+    cmpActiveTab = hit.status || "ALL";
+    renderCompare();
+
+    setTimeout(() => __scrollFlashAndMark("cmpTable", on, fromTag), 90);
+    return;
+  }
 }
+
 
 function renderGsStatusFilters(){
   const el = document.getElementById("gsStatusFilters");
@@ -1439,15 +1499,26 @@ if(gsStatusFilter    && gsStatusFilter   .size){
     }
     sel += '</select>';
 
-    const orderCell = `
-      <div class="ord-cell">
-        <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
-               value="${escAttr(on)}"
-               onchange="setWorkOrderNo(${i}, this.value)">
-        ${on ? `<button type="button" class="jump-btn" onclick="jumpToGutschrift('${on}')">GS</button>` : ""}
-        ${statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`)}
-      </div>
-    `;
+    const vgEnabled = isCompareReady();
+
+const orderCell = `
+  <div class="ord-cell">
+    <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
+           value="${escAttr(on)}"
+           onchange="setWorkOrderNo(${i}, this.value)">
+
+    ${on ? `<button type="button" class="jump-btn" data-jump="GS" onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
+
+    <button type="button" class="jump-btn" data-jump="VG"
+            onclick="jumpTo('VG','${on}','AUF')"
+            ${vgEnabled ? "" : "disabled"}>
+      VG
+    </button>
+
+    ${statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`)}
+  </div>
+`;
+
 
     html += `
       <tr class="${o.package?'good':'bad'} ${o.slot}" data-orderno="${escAttr(on)}">
@@ -1951,14 +2022,21 @@ filtered = filtered.filter(e => gsStatusFilter.has(__statusForFilter(e.matchStat
     const e = filtered[i] || {};
     const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
 
-    const orderCell =
-      `<div class="ord-cell">` +
-        `<input class="ord-input" inputmode="numeric" placeholder="Bestellnr" ` +
-          `value="${escAttr(on)}" onchange="setGsOrderNo(${i}, this.value)">` +
-        (on ? `<button type="button" class="jump-btn" onclick="jumpToWork('${escAttr(on)}')">AU</button>` : ``) +
-        statusSelectHtml(e.matchStatus || "", `setGsStatus(${i}, this.value)`) +
-      `</div>` +
-      ((!on && e.beleg) ? `<div class="ord-sub">${escAttr(e.beleg)}</div>` : ``);
+    const vgEnabled = isCompareReady();
+
+const orderCell =
+  `<div class="ord-cell">` +
+    `<input class="ord-input" inputmode="numeric" placeholder="Bestellnr" ` +
+      `value="${escAttr(on)}" onchange="setGsOrderNo(${i}, this.value)">` +
+
+    (on ? `<button type="button" class="jump-btn" data-jump="AUF" onclick="jumpTo('AUF','${escAttr(on)}','GS')">AU</button>` : ``) +
+
+    `<button type="button" class="jump-btn" data-jump="VG" onclick="jumpTo('VG','${escAttr(on)}','GS')" ${vgEnabled ? "" : "disabled"}>VG</button>` +
+
+    statusSelectHtml(e.matchStatus || "", `setGsStatus(${i}, this.value)`) +
+  `</div>` +
+  ((!on && e.beleg) ? `<div class="ord-sub">${escAttr(e.beleg)}</div>` : ``);
+
 
     html.push(
       `<tr data-orderno="${escAttr(on)}">` +
@@ -2307,6 +2385,50 @@ function flashRow(tr){
   tr.scrollIntoView({ behavior:"smooth", block:"center" });
   setTimeout(()=>tr.classList.remove("flash"), 1200);
 }
+function isCompareReady(){
+  return Array.isArray(cmpRows) && cmpRows.length > 0;
+}
+
+// im Ziel: Row scroll + Row flash + den "zurück"-Button (data-jump=FROM) gelb blinken lassen
+function __scrollFlashAndMark(tableId, orderNo, fromTag){
+  const on = normalizeOrderNo(orderNo);
+  if(!on) return;
+
+  const tbl = document.getElementById(tableId);
+  if(!tbl) return;
+
+  const row = tbl.querySelector(`tr[data-orderno="${on}"]`);
+  if(!row) return;
+
+  row.scrollIntoView({ behavior:"smooth", block:"center" });
+  row.classList.add("row-flash");
+  setTimeout(() => row.classList.remove("row-flash"), 1200);
+
+  if(fromTag){
+    const btn = row.querySelector(`[data-jump="${fromTag}"]`);
+    if(btn){
+      btn.classList.add("btn-blink");
+      setTimeout(()=>btn.classList.remove("btn-blink"), 1400);
+    }
+  }
+}
+
+// Accordion sauber öffnen
+function __openContent(contentId, toggleFnName){
+  const el = document.getElementById(contentId);
+  if(!el) return false;
+
+  if(el.style.display !== "block"){
+    const acc = document.querySelector(`.accordion[onclick*="${toggleFnName}"]`);
+    if(acc) acc.setAttribute("aria-expanded","true");
+
+    const fn = window[toggleFnName];
+    if(typeof fn === "function") fn();
+
+    el.style.display = "block";
+  }
+  return true;
+}
 
 // Zwischen Tabellen springen
 function jumpTo(target, orderNo){
@@ -2390,9 +2512,8 @@ function jumpTo(target, orderNo){
     return;
   }
 }
-function jumpToGutschrift(orderNo){ return jumpTo("GS", orderNo); }
-function jumpToWork(orderNo){ return jumpTo("AUF", orderNo); }
-function jumpToOrders(orderNo){ return jumpTo("AUF", orderNo); }
+
+
 function resetWork(){
   // NUR Arbeit (1–3) leeren:
   days = {};
@@ -2749,13 +2870,14 @@ function renderCompare(){
     else cls="cmp-bad";
 
     tbl.innerHTML += `
-      <tr class="${cls}">
+     <tr class="${cls}" data-orderno="${escAttr(r.orderNo||"")}">
         <td>${r.status}</td>
         <td>
   <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
     <b>${r.orderNo||""}</b>
-    <button class="chip" onclick="jumpToGutschrift('${r.orderNo||""}')">GS</button>
-    <button class="chip" onclick="jumpToOrders('${r.orderNo||""}')">AUF</button>
+    <button class="chip" data-jump="GS" onclick="jumpTo('GS','${r.orderNo||""}','VG')">GS</button>
+<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${r.orderNo||""}','VG')">AUF</button>
+
   </div>
 </td>
 

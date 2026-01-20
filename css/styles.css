@@ -647,3 +647,19 @@ tr.bad.afternoon{background: color-mix(in srgb, var(--bad) 70%, var(--aft) 30%)}
 .sf-item{ display:flex; align-items:center; gap:6px; }
 .sf-item input{ width:18px; height:18px; }
 
+/* --- Jump Button Blink (gelb) --- */
+.btn-blink{
+  animation: blinkYellow 1.2s ease-in-out 0s 1;
+  box-shadow: 0 0 0 6px rgba(245,158,11,.20);
+}
+@keyframes blinkYellow{
+  0%   { background: rgba(245,158,11,.75); }
+  40%  { background: rgba(245,158,11,.18); }
+  70%  { background: rgba(245,158,11,.55); }
+  100% { background: rgba(245,158,11,.18); }
+}
+button:disabled{
+  opacity: .35;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
