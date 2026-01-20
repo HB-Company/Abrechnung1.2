@@ -1417,27 +1417,45 @@ function jumpTo(target, orderNo, fromTag){
   }
 
   // === Ziel: Vergleich ===
-  if(target === "VG"){
-    if(!isCompareReady()){
-      alert("❗ Vergleichsliste ist noch leer. Bitte erst Vergleich starten.");
-      return;
-    }
-
-    __openContent("cmpContent", "toggleCompare");
-
-    const hit = (cmpRows || []).find(r => normalizeOrderNo(r.orderNo) === on);
-    if(!hit){
-      alert("❗ In Vergleichsliste nicht gefunden: " + on);
-      return;
-    }
-
-    // ✅ Tab passend zum Status (damit der Eintrag garantiert sichtbar ist)
-    cmpActiveTab = hit.status || "ALL";
-    renderCompare();
-
-    setTimeout(() => __scrollFlashAndMark("cmpTable", on, fromTag), 90);
+if(target === "VG"){
+  if(!isCompareReady()){
+    alert("❗ Vergleichsliste ist noch leer. Bitte erst Vergleich starten.");
     return;
   }
+
+  __openContent("cmpContent", "toggleCompare");
+
+  const on2 = normalizeOrderNo(orderNo);
+  if(!on2){
+    alert("❗ Ungültige Bestellnr");
+    return;
+  }
+
+  // Treffer suchen
+  const hit = (cmpRows || []).find(r => normalizeOrderNo(r.orderNo) === on2);
+
+  // ✅ Regel: von AUF -> Tab "Fehlt GS" | von GS -> Tab "Fehlt Aufträge"
+  if(fromTag === "AUF"){
+    cmpActiveTab = "MISSING_GS";
+  } else if(fromTag === "GS"){
+    cmpActiveTab = "MISSING_ORD";
+  } else {
+    cmpActiveTab = "ALL";
+  }
+
+  // Wenn Treffer existiert und sein Status-Tab passt besser, nimm den:
+  // (optional, aber praktisch)
+  if(hit && (hit.status === "MISSING_GS" || hit.status === "MISSING_ORD" || hit.status === "PRICE_DIFF" || hit.status === "OK" || hit.status === "NO_ID")){
+    // Wenn du IMMER nach Regel springen willst, kommentiere die nächste Zeile aus.
+    // cmpActiveTab = hit.status;
+  }
+
+  renderCompare();
+
+  setTimeout(() => __scrollFlashAndMark("cmpTable", on2, fromTag), 90);
+  return;
+}
+
 }
 
 
