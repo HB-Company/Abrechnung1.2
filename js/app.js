@@ -1317,46 +1317,60 @@ function jumpToGutschrift(orderNo){
 
 
 function renderOrders(){
-  let list =
-    activeTab=="ALL" ? [...Object.values(days).flat()] :
-    activeTab=="UNK" ? unknown :
+  const list =
+    activeTab === "ALL" ? [...Object.values(days).flat()] :
+    activeTab === "UNK" ? (unknown || []) :
     (days[activeTab] || []);
 
   __uiOrdersRef = list;
 
-  orderTable.innerHTML =
-    '<tr><th>Datum</th><th>Uhrzeit</th><th>Bestellnr</th><th>Artikel</th><th>Paket</th><th>Preis €</th></tr>';
+  const pkgs = Array.isArray(packages) ? packages : [];
 
-  list.forEach((o,i)=>{
+  // Header
+  const html = [];
+  html.push('<tr><th>Datum</th><th>Uhrzeit</th><th>Bestellnr</th><th>Artikel</th><th>Paket</th><th>Preis €</th></tr>');
+
+  for(let i=0; i<list.length; i++){
+    const o = list[i] || {};
     const on = normalizeOrderNo(o.orderNo);
 
-    let sel = '<select onchange="assignPkg(this.value,'+i+')"><option value=""></option>';
-    packages.forEach(p=> sel += `<option value="${p.name}" ${p.name==o.package?'selected':''}>${p.name}</option>`);
-    sel += '</select>';
+    // Paket-Select (Pakete sind meist wenige -> ok)
+    let sel = `<select onchange="assignPkg(this.value,${i})"><option value=""></option>`;
+    for(let j=0; j<pkgs.length; j++){
+      const p = pkgs[j];
+      if(!p) continue;
+      const val = escAttr(p.name || "");
+      const selected = (p.name === o.package) ? "selected" : "";
+      sel += `<option value="${val}" ${selected}>${escAttr(p.name || "")}</option>`;
+    }
+    sel += `</select>`;
 
-    // Bestellnr-Zelle: Input + Jump( GS ) + Status
-    const orderCell = `
-      <div class="ord-cell">
-        <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
-               value="${escAttr(on)}"
-               onchange="setWorkOrderNo(${i}, this.value)">
-        ${on ? `<button type="button" class="jump-btn" onclick="jumpToGutschrift('${on}')">GS</button>` : ""}
-        ${statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`)}
-      </div>
-    `;
+    // Bestellnr: Input + Jump(GS) + Status
+    const orderCell =
+      `<div class="ord-cell">` +
+        `<input class="ord-input" inputmode="numeric" placeholder="Bestellnr" ` +
+          `value="${escAttr(on)}" onchange="setWorkOrderNo(${i}, this.value)">` +
+        (on ? `<button type="button" class="jump-btn" onclick="jumpToGutschrift('${escAttr(on)}')">GS</button>` : ``) +
+        statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`) +
+      `</div>`;
 
-    orderTable.innerHTML += `
-      <tr class="${o.package?'good':'bad'} ${o.slot}" data-orderno="${escAttr(on)}">
-        <td data-label="Datum">${o.date||''}</td>
-        <td data-label="Uhrzeit">${o.time||''}</td>
-        <td data-label="Bestellnr">${orderCell}</td>
-        <td data-label="Artikel">${o.artikel||''}</td>
-        <td data-label="Paket">${sel}</td>
-        <td data-label="Preis €">${o.price||0}</td>
-      </tr>
-    `;
-  });
+    const trClass = `${o.package ? "good" : "bad"} ${o.slot || ""}`.trim();
+
+    html.push(
+      `<tr class="${trClass}" data-orderno="${escAttr(on)}">` +
+        `<td data-label="Datum">${escAttr(o.date || "")}</td>` +
+        `<td data-label="Uhrzeit">${escAttr(o.time || "")}</td>` +
+        `<td data-label="Bestellnr">${orderCell}</td>` +
+        `<td data-label="Artikel">${escAttr(o.artikel || "")}</td>` +
+        `<td data-label="Paket">${sel}</td>` +
+        `<td data-label="Preis €">${Number(o.price || 0)}</td>` +
+      `</tr>`
+    );
+  }
+
+  orderTable.innerHTML = html.join("");
 }
+
 
 
 function assignPkg(name, i){
@@ -1754,83 +1768,101 @@ function renderGutschriftTable(){
   const tbl = document.getElementById("gsTable");
   if(!tbl) return;
 
-  const { mode, rows } = getVisibleRowsForGsTable();
+  const vr = getVisibleRowsForGsTable();
+  const mode = vr.mode;
+  const rows = vr.rows || [];
 
+  // INV
   if(mode === "INV"){
-    tbl.innerHTML = `
-      <tr><th>Rechnung</th><th>Wert</th></tr>
-      ${Object.entries(gsInvoice||{}).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join("")}
-    `;
+    const html = [];
+    html.push(`<tr><th>Rechnung</th><th>Wert</th></tr>`);
+    const entries = Object.entries(gsInvoice || {});
+    for(let i=0;i<entries.length;i++){
+      const [k,v] = entries[i];
+      html.push(`<tr><td>${escAttr(k)}</td><td>${escAttr(v)}</td></tr>`);
+    }
+    tbl.innerHTML = html.join("");
     return;
   }
 
+  // KM
   if(mode === "KM"){
-    tbl.innerHTML = `<tr><th>Datum</th><th>Tour</th><th>KM</th><th>€</th></tr>`;
-    for(const e of (rows||[])){
-      tbl.innerHTML += `
-        <tr>
-          <td>${e.date||""}</td>
-          <td>${e.tour||""}</td>
-          <td>${Number(e.km||0).toFixed(2)}</td>
-          <td>${Number(e.amount||0).toFixed(2)}</td>
-        </tr>
-      `;
+    const html = [];
+    html.push(`<tr><th>Datum</th><th>Tour</th><th>KM</th><th>€</th></tr>`);
+    for(let i=0;i<rows.length;i++){
+      const e = rows[i] || {};
+      html.push(
+        `<tr>` +
+          `<td>${escAttr(e.date||"")}</td>` +
+          `<td>${escAttr(e.tour||"")}</td>` +
+          `<td>${Number(e.km||0).toFixed(2)}</td>` +
+          `<td>${Number(e.amount||0).toFixed(2)}</td>` +
+        `</tr>`
+      );
     }
+    tbl.innerHTML = html.join("");
     return;
   }
 
+  // ALT
   if(mode === "ALT"){
-    tbl.innerHTML = `<tr><th>Datum</th><th>Beleg</th><th>FO</th><th>Fahrer</th><th>Typ</th><th>€</th></tr>`;
-    for(const e of (rows||[])){
-      tbl.innerHTML += `
-        <tr>
-          <td>${e.date||""}</td>
-          <td>${e.beleg||""}</td>
-          <td>${e.fo||""}</td>
-          <td>${e.fahrer||""}</td>
-          <td>${e.typ||""}</td>
-          <td>${Number(e.amount||0).toFixed(2)}</td>
-        </tr>
-      `;
+    const html = [];
+    html.push(`<tr><th>Datum</th><th>Beleg</th><th>FO</th><th>Fahrer</th><th>Typ</th><th>€</th></tr>`);
+    for(let i=0;i<rows.length;i++){
+      const e = rows[i] || {};
+      html.push(
+        `<tr>` +
+          `<td>${escAttr(e.date||"")}</td>` +
+          `<td>${escAttr(e.beleg||"")}</td>` +
+          `<td>${escAttr(e.fo||"")}</td>` +
+          `<td>${escAttr(e.fahrer||"")}</td>` +
+          `<td>${escAttr(e.typ||"")}</td>` +
+          `<td>${Number(e.amount||0).toFixed(2)}</td>` +
+        `</tr>`
+      );
     }
+    tbl.innerHTML = html.join("");
     return;
   }
 
-  // DELIVERY
-  __uiGsRowsRef = rows || [];
+  // DELIVERY (mit edit + Jump AU + Status)
+  __uiGsRowsRef = rows;
 
-  tbl.innerHTML = `
-    <tr>
-      <th>Datum</th><th>Bestellnr/Beleg</th><th>FO</th><th>Fahrer</th><th>Paket (Quelle)</th><th>€</th>
-    </tr>
-  `;
+  const html = [];
+  html.push(
+    `<tr>` +
+      `<th>Datum</th><th>Bestellnr/Beleg</th><th>FO</th><th>Fahrer</th><th>Paket (Quelle)</th><th>€</th>` +
+    `</tr>`
+  );
 
-  __uiGsRowsRef.forEach((e, i) => {
+  for(let i=0;i<rows.length;i++){
+    const e = rows[i] || {};
     const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
 
-    const orderCell = `
-      <div class="ord-cell">
-        <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
-               value="${escAttr(on)}"
-               onchange="setGsOrderNo(${i}, this.value)">
-        ${on ? `<button type="button" class="jump-btn" onclick="jumpToWork('${on}')">AU</button>` : ""}
-        ${statusSelectHtml(e.matchStatus || "", `setGsStatus(${i}, this.value)`)}
-      </div>
-      ${(!on && e.beleg) ? `<div class="ord-sub">${e.beleg}</div>` : ""}
-    `;
+    const orderCell =
+      `<div class="ord-cell">` +
+        `<input class="ord-input" inputmode="numeric" placeholder="Bestellnr" ` +
+          `value="${escAttr(on)}" onchange="setGsOrderNo(${i}, this.value)">` +
+        (on ? `<button type="button" class="jump-btn" onclick="jumpToWork('${escAttr(on)}')">AU</button>` : ``) +
+        statusSelectHtml(e.matchStatus || "", `setGsStatus(${i}, this.value)`) +
+      `</div>` +
+      ((!on && e.beleg) ? `<div class="ord-sub">${escAttr(e.beleg)}</div>` : ``);
 
-    tbl.innerHTML += `
-      <tr data-orderno="${escAttr(on)}">
-        <td>${e.date||""}</td>
-        <td>${orderCell}</td>
-        <td>${e.fo||""}</td>
-        <td>${e.fahrer||""}</td>
-        <td>${e.paketname||""}</td>
-        <td>${Number(e.price||0).toFixed(2)}</td>
-      </tr>
-    `;
-  });
+    html.push(
+      `<tr data-orderno="${escAttr(on)}">` +
+        `<td>${escAttr(e.date||"")}</td>` +
+        `<td>${orderCell}</td>` +
+        `<td>${escAttr(e.fo||"")}</td>` +
+        `<td>${escAttr(e.fahrer||"")}</td>` +
+        `<td>${escAttr(e.paketname||"")}</td>` +
+        `<td>${Number(e.price||0).toFixed(2)}</td>` +
+      `</tr>`
+    );
+  }
+
+  tbl.innerHTML = html.join("");
 }
+
 
 
 function renderGutschriftAll(){
