@@ -5,6 +5,33 @@ let pn, pp, pk, pc, symbolBtn, pkgTable;
 let tabs, dashboard, orderTable;
 let bar, progressText;
 let m_date, m_time, m_artikel, m_package, m_order;
+function __ensureDom(){
+  pn = pn || document.getElementById('pn');
+  pp = pp || document.getElementById('pp');
+  pk = pk || document.getElementById('pk');
+  pc = pc || document.getElementById('pc');
+  symbolBtn = symbolBtn || document.getElementById('symbolBtn');
+  pkgTable = pkgTable || document.getElementById('pkgTable');
+
+  tabs = tabs || document.getElementById('tabs');
+  dashboard = dashboard || document.getElementById('dashboard');
+  orderTable = orderTable || document.getElementById('orderTable');
+
+  bar = bar || document.getElementById('bar');
+  progressText = progressText || document.getElementById('progressText');
+
+  m_date = m_date || document.getElementById('m_date');
+  m_time = m_time || document.getElementById('m_time');
+  m_artikel = m_artikel || document.getElementById('m_artikel');
+  m_package = m_package || document.getElementById('m_package');
+  m_order = m_order || document.getElementById('m_order');
+
+  gsBar = gsBar || document.getElementById('gsBar');
+  gsProgressText = gsProgressText || document.getElementById('gsProgressText');
+  cmpBar = cmpBar || document.getElementById('cmpBar');
+  cmpProgressText = cmpProgressText || document.getElementById('cmpProgressText');
+}
+
 
 
 window.addEventListener('load', () => {
@@ -565,7 +592,8 @@ const scale = isIOS ? 2 : 1.5;
       parseOCR((r && r.data && r.data.text) ? r.data.text : '');
 
       done++;
-      __ocrBar((done+1)/files.length);
+__ocrBar(done / files.length);
+
 
       __ocrStatus(`${done} / ${files.length}`);
     }
@@ -1081,12 +1109,18 @@ function __sortAllOrders(){
 
 /* ---------- UI ---------- */
 function renderTabs(){
+  __ensureDom();
+  const dayKeys = __sortedDayKeys(); // nutzt deine ISO-Sortierung
+
   tabs.innerHTML = `<span class="${activeTab=="ALL"?"active":""}" onclick="setTab('ALL')">Gesamt</span>`;
-  Object.keys(days).forEach(d=>{
+
+  dayKeys.forEach(d=>{
     tabs.innerHTML += `<span class="${activeTab==d?'active':''}" onclick="setTab('${d}')">${d}</span>`;
   });
+
   tabs.innerHTML += `<span class="${activeTab=="UNK"?"active":""}" onclick="setTab('UNK')">❗ Unbekannt (${unknown.length})</span>`;
 }
+
 function setTab(t){ activeTab=t; renderAll(); }
 
 function renderDashboard(){
@@ -1408,12 +1442,16 @@ function assignPkg(name, i){
 
 
 function renderAll(){
+  __ensureDom();
+  __sortAllOrders();   // du hast die Sortier-Helfer schon
+
   renderPackages();
   renderTabs();
   renderDashboard();
   renderOrders();
   fillTimeDropdown();
 }
+
 
 /* ---------- MANUELLER EINTRAG ---------- */
 function toggleManual(){
@@ -1883,12 +1921,16 @@ function __resetProg(barEl, textEl){
 
 /* ---------- IMPORT: PDF oder XLSX ---------- */
 async function importGutschrift(files){
+
+
   if(!files || !files.length) return;
 
   const file = files[0];
   const name = (file.name||"").toLowerCase();
 
   try{
+	  	__ensureDom();
+__setProg(gsBar, gsProgressText, 0.05, "Gutschrift: starte…");
     // Reset vorher
     gsEntries = [];
     gsKmEntries = [];
@@ -1897,6 +1939,8 @@ async function importGutschrift(files){
     gsActiveTab = "ALL";
 
     if(name.endsWith(".xlsx")){
+		__setProg(gsBar, gsProgressText, 0.15, "Gutschrift: XLSX öffnen…");
+
       const parsed = await readGutschriftXlsx(file);
       gsEntries = parsed.entries || [];
       gsKmEntries = parsed.km || [];
@@ -1921,13 +1965,18 @@ async function importGutschrift(files){
     const kmCount = gsKmEntries.length;
     const altCount = gsAltEntries.length;
 
+__setProg(gsBar, gsProgressText, 1.00, `✅ Gutschrift geladen: ${gsEntries.length} Positionen`);
+
     alert(`✅ Gutschrift geladen: ${gsEntries.length} Positionen • KM: ${kmCount} • Alt: ${altCount}`);
   }catch(err){
     console.error(err);
+	__setProg(gsBar, gsProgressText, 0, "❌ Gutschrift: Fehler (siehe Konsole)");
+
     alert("❌ Fehler beim Gutschrift-Import: " + (err && err.message ? err.message : String(err)));
   }
 }
 
+__setProg(gsBar, gsProgressText, 0.15, "Gutschrift: XLSX öffnen…");
 /* ---------- XLSX PARSER (BEST) ---------- */
 async function readGutschriftXlsx(file){
   const buf = await file.arrayBuffer();
@@ -2203,49 +2252,51 @@ function cmpStatusToEmoji(s){
 }
 
 function runComparison(){
-  // Voraussetzungen prüfen
+  __ensureDom();
   __setProg(cmpBar, cmpProgressText, 0.05, "Vergleich: prüfe Voraussetzungen…");
 
   const orderRows = getAllOrderRows();
   if(!orderRows.length){
+    __setProg(cmpBar, cmpProgressText, 0, "❌ Vergleich: keine Aufträge");
     alert("❗ Keine Aufträge vorhanden. Bitte erst Screenshots laden oder manuell Einträge erstellen.");
     return;
   }
   if(!gsEntries || !gsEntries.length){
+    __setProg(cmpBar, cmpProgressText, 0, "❌ Vergleich: keine Gutschrift");
     alert("❗ Keine Gutschrift vorhanden. Bitte erst Gutschrift (XLSX/PDF) laden.");
     return;
   }
 
-  // Maps bauen
-  const gsMap = new Map(); // orderNo -> [entries]
+  __setProg(cmpBar, cmpProgressText, 0.18, "Vergleich: indexiere Gutschrift…");
+
+  // GS Map: orderNo -> [entries]
+  const gsMap = new Map();
   for(const e of gsEntries){
-    const id = digitsOnly(e.orderNo || e.beleg || e.fo);
+    const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
     if(!id) continue;
     if(!gsMap.has(id)) gsMap.set(id, []);
     gsMap.get(id).push(e);
   }
-  __setProg(cmpBar, cmpProgressText, 0.25, "Vergleich: baue Index (Gutschrift)…");
-__setProg(cmpBar, cmpProgressText, 0.40, "Vergleich: baue Index (Aufträge)…");
 
-__setProg(cmpBar, cmpProgressText, 0.55, "Vergleich: prüfe Aufträge gegen Gutschrift…");
+  __setProg(cmpBar, cmpProgressText, 0.32, "Vergleich: indexiere Aufträge…");
 
-  const ordMap = new Map(); // orderNo -> [orders]
+  // Orders Map: orderNo -> [orders]
+  const ordMap = new Map();
   for(const o of orderRows){
-    const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
-
-
+    const id = normalizeOrderNo(o.orderNo);
     if(!id) continue;
     if(!ordMap.has(id)) ordMap.set(id, []);
     ordMap.get(id).push(o);
   }
 
+  __setProg(cmpBar, cmpProgressText, 0.50, "Vergleich: prüfe Aufträge gegen Gutschrift…");
+
   const out = [];
 
-__setProg(cmpBar, cmpProgressText, 0.80, "Vergleich: prüfe Gutschrift gegen Aufträge…");
-  // 1) Orders -> check in Gutschrift
-  for(const o of orderRows){
-    const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
-
+  // 1) Orders -> check in GS
+  for(let idx=0; idx<orderRows.length; idx++){
+    const o = orderRows[idx];
+    const id = normalizeOrderNo(o.orderNo);
 
     if(!id){
       out.push({
@@ -2278,7 +2329,6 @@ __setProg(cmpBar, cmpProgressText, 0.80, "Vergleich: prüfe Gutschrift gegen Auf
       continue;
     }
 
-    // wenn mehrere, nimm erste + Hinweis
     const g = matches[0];
     const gsPrice = Number(g.price||0);
 
@@ -2307,10 +2357,16 @@ __setProg(cmpBar, cmpProgressText, 0.80, "Vergleich: prüfe Gutschrift gegen Auf
         note: (matches.length>1 ? `OK (mehrfach in GS: ${matches.length})` : "OK")
       });
     }
+
+    // kleines Progress-Update (optional aber nice)
+    if((idx % 25) === 0){
+      __setProg(cmpBar, cmpProgressText, 0.50 + 0.25*(idx/orderRows.length), `Vergleich: prüfe Aufträge… (${idx}/${orderRows.length})`);
+    }
   }
 
+  __setProg(cmpBar, cmpProgressText, 0.80, "Vergleich: prüfe Gutschrift gegen Aufträge…");
 
-  // 2) Gutschrift -> check missing in Orders
+  // 2) GS -> check missing in Orders
   for(const [id, list] of gsMap.entries()){
     if(!ordMap.has(id)){
       const g = list[0];
@@ -2330,24 +2386,23 @@ __setProg(cmpBar, cmpProgressText, 0.80, "Vergleich: prüfe Gutschrift gegen Auf
 
   cmpRows = out;
 
-// ✅ Status direkt in Vergleichsliste übernehmen
-for(const r of cmpRows){
-  r.matchStatus = cmpStatusToEmoji(r.status);
+  // Status Emoji in Vergleich
+  for(const r of cmpRows){
+    r.matchStatus = cmpStatusToEmoji(r.status);
+  }
+
+  cmpActiveTab = "ALL";
+  const content = document.getElementById("cmpContent");
+  if(content) content.style.display = "block";
+
+  // setzt Status auch in AUFTRÄGE + GUTSCHRIFT
+  applyCompareStatuses();
+
+  __setProg(cmpBar, cmpProgressText, 0.94, "Vergleich: rendern…");
+  renderCompare();
+  __setProg(cmpBar, cmpProgressText, 1.00, `✅ Vergleich fertig: ${cmpRows.length} Zeilen`);
 }
 
-cmpActiveTab = "ALL";
-// Accordion automatisch öffnen
-const content = document.getElementById("cmpContent");
-if(content) content.style.display = "block";
-
-// ✅ setzt Status auch in AUFTRÄGE + GUTSCHRIFT
-applyCompareStatuses();
-__setProg(cmpBar, cmpProgressText, 0.92, "Vergleich: rendern…");
-renderCompare();
-__setProg(cmpBar, cmpProgressText, 1.00, `✅ Vergleich fertig: ${cmpRows.length} Zeilen`);
-
-
-}
 
 function renderCompare(){
   const sumEl = document.getElementById("cmpSummary");
