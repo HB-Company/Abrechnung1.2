@@ -2272,6 +2272,112 @@ function jumpTo(target, orderNo){
 function jumpToGutschrift(orderNo){ return jumpTo("GS", orderNo); }
 function jumpToWork(orderNo){ return jumpTo("AUF", orderNo); }
 function jumpToOrders(orderNo){ return jumpTo("AUF", orderNo); }
+function resetWork(){
+  // NUR Arbeit (1–3) leeren:
+  days = {};
+  unknown = [];
+  activeTab = "ALL";
+
+  // optional: Vergleich leeren (falls du willst, sonst Zeilen löschen)
+  if(typeof cmpRows !== "undefined"){ cmpRows = []; }
+  if(typeof cmpActiveTab !== "undefined"){ cmpActiveTab = "ALL"; }
+
+  // UI sauber zurücksetzen
+  try{
+    if(bar) bar.style.width = "0%";
+    if(progressText) progressText.innerText = "";
+  }catch(e){}
+
+  // Tabelle/Tabs/Dashboard leeren (falls Elemente existieren)
+  try{
+    if(tabs) tabs.innerHTML = "";
+    if(dashboard) dashboard.innerHTML = "";
+    if(orderTable) orderTable.innerHTML = "";
+  }catch(e){}
+
+  // Vergleich UI (optional)
+  try{
+    const ct = document.getElementById("cmpTable");
+    const cs = document.getElementById("cmpSummary");
+    const ctabs = document.getElementById("cmpTabs");
+    if(ct) ct.innerHTML = "";
+    if(cs) cs.innerHTML = "";
+    if(ctabs) ctabs.innerHTML = "";
+  }catch(e){}
+
+  renderAll();
+  alert("✅ Arbeit (1–3) wurde geleert (Pakete & Gutschrift bleiben erhalten).");
+}
+
+function saveWork(){
+  // Speichert IMMER komplett Arbeit (Days + Unknown), unabhängig vom aktiven Tab
+  const data = {
+    type: "work_tables",
+    version: "work-1.0",
+    created: new Date().toISOString(),
+    activeTab: activeTab || "ALL",
+    days: days || {},
+    unknown: unknown || []
+  };
+
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "arbeit-tabellen.json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function loadWork(files){
+  if(!files || !files.length){
+    alert("❗ Keine Datei gewählt");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const data = JSON.parse(e.target.result);
+
+      if(!data || typeof data !== "object"){
+        throw new Error("Ungültige Datei");
+      }
+
+      // akzeptiere auch alte "tables" Exporte, aber primär work_tables
+      const isWork = data.type === "work_tables";
+      const isOldTables = data.type === "tables";
+
+      if(!isWork && !isOldTables){
+        throw new Error("Nicht die richtige Datei (type fehlt/anders).");
+      }
+
+      if(typeof data.days !== "object" || data.days === null) data.days = {};
+      if(!Array.isArray(data.unknown)) data.unknown = [];
+
+      // ERSETZEN (damit es sauber ist)
+      days = data.days;
+      unknown = data.unknown;
+      activeTab = (typeof data.activeTab === "string" && data.activeTab) ? data.activeTab : "ALL";
+
+      // nach dem Laden: sortieren (wenn du die Sortier-Helper hast)
+      try{
+        if(typeof __sortAllOrders === "function") __sortAllOrders();
+      }catch(e){}
+
+      renderAll();
+      alert("✅ Arbeit geladen.");
+    }catch(err){
+      console.error(err);
+      alert("❌ Fehler beim Laden: " + (err?.message || String(err)));
+    }
+  };
+  reader.readAsText(files[0]);
+}
 
 
 // Gutschrift öffnen + zur Bestellnr springen

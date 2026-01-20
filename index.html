@@ -174,15 +174,15 @@
 
 
 <!-- ================== CONTROLS ================== -->
-<div id="tabControls" class="section">
-  <button class="danger" onclick="location.reload()">♻ Reset</button>
+<!-- ===== Arbeit Controls ===== -->
+<div class="section" style="margin-top:10px;">
+  <button class="danger" onclick="resetWork()">♻ Reset </button>
 
-  <button class="ghost" onclick="exportCurrentTab()">⬇💾 Save</button>
+  <button class="ghost" onclick="saveWork()">⬇💾 Save </button>
 
-  <input type="file" id="importTabFile" accept=".json" style="display:none" onchange="importCurrentTab(this.files)">
-  <button class="ghost" onclick="document.getElementById('importTabFile').click()">⬆📁 Load</button>
-</div>
-
+  <input type="file" id="importWorkFile" accept=".json" style="display:none"
+         onchange="loadWork(this.files)">
+  <button class="ghost" onclick="document.getElementById('importWorkFile').click()">⬆📁 Load </button>
 </div>
 
 <!-- ================== GUTSCHRIFT ================== -->
