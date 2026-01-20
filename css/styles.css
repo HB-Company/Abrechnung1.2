@@ -602,3 +602,33 @@ tr.bad.afternoon{background: color-mix(in srgb, var(--bad) 70%, var(--aft) 30%)}
   outline: 3px solid rgba(96,165,250,.55);
   outline-offset: 2px;
 }
+.status-filter{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+  padding:10px;
+  margin: 8px 0 10px;
+  background: rgba(255,255,255,.07);
+  border:1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.status-filter label{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 10px;
+  border-radius:999px;
+  background: rgba(148,163,184,.18);
+  border:1px solid var(--stroke);
+  cursor:pointer;
+  user-select:none;
+  font-weight:800;
+  font-size:13px;
+}
+.status-filter input{
+  width:18px;
+  height:18px;
+}

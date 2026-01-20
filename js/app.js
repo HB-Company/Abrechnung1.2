@@ -1380,15 +1380,28 @@ function jumpToGutschrift(orderNo){
 
   setTimeout(() => scrollToOrderRow("gsTable", on), 60);
 }
+let __statusFilterSet = new Set(["✅","⚠️","❌"]);
+
+function setStatusFilter(){
+  const wrap = document.getElementById("statusFilter");
+  if(!wrap) return;
+  const checked = Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked'))
+    .map(x => x.value);
+  __statusFilterSet = new Set(checked);
+  renderOrders(); // nur Tabelle neu zeichnen (schneller)
+}
 
 // UI-Helfer: Referenz auf aktuell gerenderte Auftragsliste (damit Paket-Zuordnung in ALL/Datum/UNK funktioniert)
-
-
 function renderOrders(){
   let list =
     activeTab=="ALL" ? [...Object.values(days).flat()] :
     activeTab=="UNK" ? unknown :
     (days[activeTab] || []);
+	// Status-Filter anwenden (matchStatus: ✅ ⚠️ ❌)
+if(__statusFilterSet && __statusFilterSet.size){
+  list = (list || []).filter(o => __statusFilterSet.has(o.matchStatus || "❌"));
+}
+
 
   __uiOrdersRef = list;
 
