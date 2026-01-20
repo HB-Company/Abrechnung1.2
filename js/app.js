@@ -5,32 +5,6 @@ let pn, pp, pk, pc, symbolBtn, pkgTable;
 let tabs, dashboard, orderTable;
 let bar, progressText;
 let m_date, m_time, m_artikel, m_package, m_order;
-function __ensureDom(){
-  pn = pn || document.getElementById('pn');
-  pp = pp || document.getElementById('pp');
-  pk = pk || document.getElementById('pk');
-  pc = pc || document.getElementById('pc');
-  symbolBtn = symbolBtn || document.getElementById('symbolBtn');
-  pkgTable = pkgTable || document.getElementById('pkgTable');
-
-  tabs = tabs || document.getElementById('tabs');
-  dashboard = dashboard || document.getElementById('dashboard');
-  orderTable = orderTable || document.getElementById('orderTable');
-
-  bar = bar || document.getElementById('bar');
-  progressText = progressText || document.getElementById('progressText');
-
-  m_date = m_date || document.getElementById('m_date');
-  m_time = m_time || document.getElementById('m_time');
-  m_artikel = m_artikel || document.getElementById('m_artikel');
-  m_package = m_package || document.getElementById('m_package');
-  m_order = m_order || document.getElementById('m_order');
-
-  gsBar = gsBar || document.getElementById('gsBar');
-  gsProgressText = gsProgressText || document.getElementById('gsProgressText');
-  cmpBar = cmpBar || document.getElementById('cmpBar');
-  cmpProgressText = cmpProgressText || document.getElementById('cmpProgressText');
-}
 
 
 
@@ -598,6 +572,8 @@ __ocrBar(done / files.length);
       __ocrStatus(`${done} / ${files.length}`);
     }
 
+__sortAllOrders();
+
     assignPackagesAfterOCR();
   }catch(err){
     console.error(err);
@@ -1109,17 +1085,18 @@ function __sortAllOrders(){
 
 /* ---------- UI ---------- */
 function renderTabs(){
-  __ensureDom();
-  const dayKeys = __sortedDayKeys(); // nutzt deine ISO-Sortierung
-
   tabs.innerHTML = `<span class="${activeTab=="ALL"?"active":""}" onclick="setTab('ALL')">Gesamt</span>`;
 
-  dayKeys.forEach(d=>{
+  // ✅ chronologisch
+  const keys = (typeof __sortedDayKeys === "function") ? __sortedDayKeys() : Object.keys(days);
+
+  keys.forEach(d=>{
     tabs.innerHTML += `<span class="${activeTab==d?'active':''}" onclick="setTab('${d}')">${d}</span>`;
   });
 
   tabs.innerHTML += `<span class="${activeTab=="UNK"?"active":""}" onclick="setTab('UNK')">❗ Unbekannt (${unknown.length})</span>`;
 }
+
 
 function setTab(t){ activeTab=t; renderAll(); }
 
@@ -1409,9 +1386,7 @@ function assignPkg(name, i){
 
 
 function renderAll(){
-  __ensureDom();
-  __sortAllOrders();   // du hast die Sortier-Helfer schon
-
+  __sortAllOrders();          // ✅ Sortierung einmal zentral
   renderPackages();
   renderTabs();
   renderDashboard();
@@ -1517,14 +1492,17 @@ function toggleWork(){
   const acc = document.querySelector(".accordion[onclick*=toggleWork]");
   if(acc) acc.setAttribute('aria-expanded', String(!isOpen));
 
-  // iOS Safari: erst sichtbar machen, dann rendern
+  // ✅ KEIN renderAll() mehr hier -> das war der Lag-Killer
+  // Falls Tabellen noch nie gerendert wurden, dann nur 1x leicht nachziehen:
   if(!isOpen){
     requestAnimationFrame(() => {
-      renderAll();
-      setTimeout(() => renderAll(), 50);
+      if(orderTable && (!orderTable.innerHTML || orderTable.innerHTML.length < 30)){
+        renderOrders();
+      }
     });
   }
 }
+
 
 
 function setGsTab(t){
@@ -2245,10 +2223,22 @@ function cmpStatusToEmoji(s){
   if(s === "MISSING_GS" || s === "MISSING_ORD" || s === "NO_ID") return "❌";
   return "";
 }
+function __ensureDom(){
+  gsBar = gsBar || document.getElementById('gsBar');
+  gsProgressText = gsProgressText || document.getElementById('gsProgressText');
+  cmpBar = cmpBar || document.getElementById('cmpBar');
+  cmpProgressText = cmpProgressText || document.getElementById('cmpProgressText');
+}
 
-function runComparison(){
+// UI-Thread kurz freigeben, damit Progress wirklich sichtbar “läuft”
+function __yieldUI(){
+  return new Promise(res => requestAnimationFrame(() => res()));
+}
+
+async function runComparison(){
   __ensureDom();
-  __setProg(cmpBar, cmpProgressText, 0.05, "Vergleich: prüfe Voraussetzungen…");
+  __setProg(cmpBar, cmpProgressText, 0.03, "Vergleich: starte…");
+  await __yieldUI();
 
   const orderRows = getAllOrderRows();
   if(!orderRows.length){
@@ -2262,109 +2252,110 @@ function runComparison(){
     return;
   }
 
-  __setProg(cmpBar, cmpProgressText, 0.18, "Vergleich: indexiere Gutschrift…");
+  // 1) GS index
+  __setProg(cmpBar, cmpProgressText, 0.10, `Vergleich: indexiere Gutschrift (${gsEntries.length})…`);
+  await __yieldUI();
 
-  // GS Map: orderNo -> [entries]
-  const gsMap = new Map();
-  for(const e of gsEntries){
+  const gsMap = new Map(); // orderNo -> [entries]
+  for(let i=0;i<gsEntries.length;i++){
+    const e = gsEntries[i];
     const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
     if(!id) continue;
     if(!gsMap.has(id)) gsMap.set(id, []);
     gsMap.get(id).push(e);
+
+    if(i % 120 === 0){
+      __setProg(cmpBar, cmpProgressText, 0.10 + (i/gsEntries.length)*0.10, `Vergleich: indexiere Gutschrift… ${i}/${gsEntries.length}`);
+      await __yieldUI();
+    }
   }
 
-  __setProg(cmpBar, cmpProgressText, 0.32, "Vergleich: indexiere Aufträge…");
+  // 2) Orders index
+  __setProg(cmpBar, cmpProgressText, 0.22, `Vergleich: indexiere Aufträge (${orderRows.length})…`);
+  await __yieldUI();
 
-  // Orders Map: orderNo -> [orders]
-  const ordMap = new Map();
-  for(const o of orderRows){
-    const id = normalizeOrderNo(o.orderNo);
+  const ordMap = new Map(); // orderNo -> [orders]
+  for(let i=0;i<orderRows.length;i++){
+    const o = orderRows[i];
+    const id = normalizeOrderNo(o.orderNo); // ✅ BUGFIX: nicht "e...." !
     if(!id) continue;
     if(!ordMap.has(id)) ordMap.set(id, []);
     ordMap.get(id).push(o);
-  }
 
-  __setProg(cmpBar, cmpProgressText, 0.50, "Vergleich: prüfe Aufträge gegen Gutschrift…");
+    if(i % 120 === 0){
+      __setProg(cmpBar, cmpProgressText, 0.22 + (i/orderRows.length)*0.10, `Vergleich: indexiere Aufträge… ${i}/${orderRows.length}`);
+      await __yieldUI();
+    }
+  }
 
   const out = [];
 
-  // 1) Orders -> check in GS
-  for(let idx=0; idx<orderRows.length; idx++){
-    const o = orderRows[idx];
+  // 3) Orders -> check GS
+  __setProg(cmpBar, cmpProgressText, 0.35, "Vergleich: prüfe Aufträge → Gutschrift…");
+  await __yieldUI();
+
+  for(let i=0;i<orderRows.length;i++){
+    const o = orderRows[i];
     const id = normalizeOrderNo(o.orderNo);
 
     if(!id){
       out.push({
-        status: "NO_ID",
-        orderNo: "",
-        date: o.date||"",
-        time: o.time||"",
-        artikel: o.artikel||"",
-        myPackage: o.package||"",
-        myPrice: Number(o.price||0),
-        gsPrice: null,
-        note: "Keine Bestellnr im Auftrag"
+        status: "NO_ID", orderNo: "",
+        date: o.date||"", time: o.time||"", artikel: o.artikel||"",
+        myPackage: o.package||"", myPrice: Number(o.price||0),
+        gsPrice: null, note: "Keine Bestellnr im Auftrag"
       });
-      continue;
+    }else{
+      const matches = gsMap.get(id) || [];
+      if(matches.length === 0){
+        out.push({
+          status: "MISSING_GS", orderNo: id,
+          date: o.date||"", time: o.time||"", artikel: o.artikel||"",
+          myPackage: o.package||"", myPrice: Number(o.price||0),
+          gsPrice: null, note: "Bestellnr nicht in Gutschrift"
+        });
+      }else{
+        const g = matches[0];
+        const gsPrice = Number(g.price||0);
+
+        if(!moneyEq(o.price, gsPrice)){
+          out.push({
+            status: "PRICE_DIFF", orderNo: id,
+            date: o.date||"", time: o.time||"", artikel: o.artikel||"",
+            myPackage: o.package||"", myPrice: Number(o.price||0),
+            gsPrice, note: (matches.length>1 ? `Preisabweichung (mehrfach in GS: ${matches.length})` : "Preisabweichung")
+          });
+        }else{
+          out.push({
+            status: "OK", orderNo: id,
+            date: o.date||"", time: o.time||"", artikel: o.artikel||"",
+            myPackage: o.package||"", myPrice: Number(o.price||0),
+            gsPrice, note: (matches.length>1 ? `OK (mehrfach in GS: ${matches.length})` : "OK")
+          });
+        }
+      }
     }
 
-    const matches = gsMap.get(id) || [];
-    if(matches.length === 0){
-      out.push({
-        status: "MISSING_GS",
-        orderNo: id,
-        date: o.date||"",
-        time: o.time||"",
-        artikel: o.artikel||"",
-        myPackage: o.package||"",
-        myPrice: Number(o.price||0),
-        gsPrice: null,
-        note: "Bestellnr nicht in Gutschrift"
-      });
-      continue;
-    }
-
-    const g = matches[0];
-    const gsPrice = Number(g.price||0);
-
-    if(!moneyEq(o.price, gsPrice)){
-      out.push({
-        status: "PRICE_DIFF",
-        orderNo: id,
-        date: o.date||"",
-        time: o.time||"",
-        artikel: o.artikel||"",
-        myPackage: o.package||"",
-        myPrice: Number(o.price||0),
-        gsPrice,
-        note: (matches.length>1 ? `Preisabweichung (mehrfach in GS: ${matches.length})` : "Preisabweichung")
-      });
-    } else {
-      out.push({
-        status: "OK",
-        orderNo: id,
-        date: o.date||"",
-        time: o.time||"",
-        artikel: o.artikel||"",
-        myPackage: o.package||"",
-        myPrice: Number(o.price||0),
-        gsPrice,
-        note: (matches.length>1 ? `OK (mehrfach in GS: ${matches.length})` : "OK")
-      });
-    }
-
-    // kleines Progress-Update (optional aber nice)
-    if((idx % 25) === 0){
-      __setProg(cmpBar, cmpProgressText, 0.50 + 0.25*(idx/orderRows.length), `Vergleich: prüfe Aufträge… (${idx}/${orderRows.length})`);
+    if(i % 25 === 0){
+      __setProg(
+        cmpBar, cmpProgressText,
+        0.35 + (i/orderRows.length)*0.40,
+        `Vergleich: Aufträge → GS… ${i+1}/${orderRows.length}`
+      );
+      await __yieldUI();
     }
   }
 
-  __setProg(cmpBar, cmpProgressText, 0.80, "Vergleich: prüfe Gutschrift gegen Aufträge…");
+  // 4) GS -> missing in Orders
+  const gsKeys = Array.from(gsMap.keys());
+  __setProg(cmpBar, cmpProgressText, 0.78, "Vergleich: prüfe Gutschrift → Aufträge…");
+  await __yieldUI();
 
-  // 2) GS -> check missing in Orders
-  for(const [id, list] of gsMap.entries()){
+  for(let i=0;i<gsKeys.length;i++){
+    const id = gsKeys[i];
     if(!ordMap.has(id)){
-      const g = list[0];
+      const list = gsMap.get(id) || [];
+      const g = list[0] || {};
       out.push({
         status: "MISSING_ORD",
         orderNo: id,
@@ -2377,26 +2368,44 @@ function runComparison(){
         note: `In Gutschrift, aber nicht in Aufträgen (GS mehrfach: ${list.length})`
       });
     }
+
+    if(i % 80 === 0){
+      __setProg(
+        cmpBar, cmpProgressText,
+        0.78 + (i/gsKeys.length)*0.17,
+        `Vergleich: GS → Aufträge… ${i+1}/${gsKeys.length}`
+      );
+      await __yieldUI();
+    }
   }
 
   cmpRows = out;
 
-  // Status Emoji in Vergleich
+  // Status direkt in Vergleichsliste setzen
   for(const r of cmpRows){
     r.matchStatus = cmpStatusToEmoji(r.status);
   }
 
   cmpActiveTab = "ALL";
+
+  // Accordion öffnen
   const content = document.getElementById("cmpContent");
   if(content) content.style.display = "block";
 
-  // setzt Status auch in AUFTRÄGE + GUTSCHRIFT
+  __setProg(cmpBar, cmpProgressText, 0.96, "Vergleich: Status setzen…");
+  await __yieldUI();
+
+  // ✅ Status in Arbeit & Gutschrift übernehmen
   applyCompareStatuses();
 
-  __setProg(cmpBar, cmpProgressText, 0.94, "Vergleich: rendern…");
+  __setProg(cmpBar, cmpProgressText, 0.99, "Vergleich: rendern…");
+  await __yieldUI();
+
   renderCompare();
+
   __setProg(cmpBar, cmpProgressText, 1.00, `✅ Vergleich fertig: ${cmpRows.length} Zeilen`);
 }
+
 
 
 function renderCompare(){
