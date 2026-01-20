@@ -44,6 +44,8 @@ let gsAltEntries = [];    // Altgeräte
 let gsInvoice = {};       // Rechnung/Brutto/MwSt usw.
 
 let gsActiveTab = "ALL";  // "ALL" | "OTHER" | "KM" | "ALT" | "INV" | "dd.mm.yyyy"
+let gsBar, gsProgressText, cmpBar, cmpProgressText;
+
 
 /* ---------- PAKETE ---------- */
 function togglePkg(){
@@ -548,7 +550,7 @@ async function loadScreenshots(files){
         throw new Error('HEIC/HEIF erkannt. Bitte JPG/PNG verwenden.');
       }
 
-      __ocrStatus(`Bild ${done+1}/${files.length}: ${f.name || 'Bild'}`);
+      __ocrStatus(`Bild ${done+1}/${files.length}: ${f.name || "Bild"}`);
 const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
 const scale = isIOS ? 2 : 1.5;
@@ -563,7 +565,8 @@ const scale = isIOS ? 2 : 1.5;
       parseOCR((r && r.data && r.data.text) ? r.data.text : '');
 
       done++;
-      __ocrBar(done / files.length);
+      __ocrBar((done+1)/files.length);
+
       __ocrStatus(`${done} / ${files.length}`);
     }
 
@@ -1032,6 +1035,49 @@ function cleanArtikelOneCustomer(str, currentTime){
 function findPkg(t){
   return packages.find(p => p.keys.some(k => (t||"").toLowerCase().includes(k.toLowerCase())));
 }
+
+//Helfer Tabs Chronilogisch
+function __dateKeyToISO(d){ // "dd.mm.yyyy" -> "yyyy-mm-dd"
+  const m = String(d||"").match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if(!m) return "0000-00-00";
+  return `${m[3]}-${m[2]}-${m[1]}`;
+}
+
+function __sortedDayKeys(){
+  return Object.keys(days).sort((a,b)=> __dateKeyToISO(a).localeCompare(__dateKeyToISO(b)));
+}
+
+function __timeStartMinutes(range){
+  const m = String(range||"").match(/(\d{2}):(\d{2})/);
+  if(!m) return 9999;
+  return (parseInt(m[1],10)*60) + parseInt(m[2],10);
+}
+
+function __sortOrdersArray(arr){
+  if(!Array.isArray(arr)) return;
+  arr.sort((a,b)=>{
+    const ta = __timeStartMinutes(a.time);
+    const tb = __timeStartMinutes(b.time);
+    if(ta !== tb) return ta - tb;
+
+    // stabiler Tie-Breaker
+    const oa = String(a.orderNo||"");
+    const ob = String(b.orderNo||"");
+    if(oa !== ob) return oa.localeCompare(ob);
+
+    return String(a.artikel||"").localeCompare(String(b.artikel||""));
+  });
+}
+
+function __sortAllOrders(){
+  // sort pro Tag
+  for(const k of Object.keys(days)){
+    __sortOrdersArray(days[k]);
+  }
+  // unknown auch sortieren (falls Zeiten drin sind)
+  __sortOrdersArray(unknown);
+}
+
 
 /* ---------- UI ---------- */
 function renderTabs(){
@@ -1820,6 +1866,20 @@ function renderGutschriftAll(){
   renderGutschriftDashboard();
   renderGutschriftTable();
 }
+//Helfer für Progress 
+function __setProg(barEl, textEl, frac, msg){
+  try{
+    if(textEl && typeof msg === "string") textEl.innerText = msg;
+    if(barEl && typeof frac === "number"){
+      const f = Math.max(0, Math.min(1, frac));
+      barEl.style.width = (f * 100).toFixed(1) + "%";
+    }
+  }catch(e){}
+}
+
+function __resetProg(barEl, textEl){
+  __setProg(barEl, textEl, 0, "");
+}
 
 /* ---------- IMPORT: PDF oder XLSX ---------- */
 async function importGutschrift(files){
@@ -1881,6 +1941,8 @@ async function readGutschriftXlsx(file){
   const alt = [];
   let invoice = {};
 
+__setProg(gsBar, gsProgressText, 0.35, "Gutschrift: lese Table 1 (Lieferpositionen)…");
+
   // Table 1: Lieferpositionen
   const s1 = getSheet("Table 1");
   if(s1){
@@ -1903,6 +1965,8 @@ entries.push({ date, beleg, fo, fahrer, price, paketname, orderNo, matchStatus:"
     }
   }
 
+__setProg(gsBar, gsProgressText, 0.55, "Gutschrift: lese Table 3 (KM)…");
+
   // Table 3: KM
   const s3 = getSheet("Table 3");
   if(s3){
@@ -1921,6 +1985,7 @@ entries.push({ date, beleg, fo, fahrer, price, paketname, orderNo, matchStatus:"
     }
   }
 
+__setProg(gsBar, gsProgressText, 0.70, "Gutschrift: lese Table 4 (Altgeräte)…");
   // Table 4: Altgeräte
   const s4 = getSheet("Table 4");
   if(s4){
@@ -1936,6 +2001,8 @@ entries.push({ date, beleg, fo, fahrer, price, paketname, orderNo, matchStatus:"
       alt.push({ date, beleg, fo, fahrer, typ, amount: Number.isFinite(amount) ? amount : 0 });
     }
   }
+
+__setProg(gsBar, gsProgressText, 0.80, "Gutschrift: lese Table 5 (Rechnung)…");
 
   // Table 5: Rechnung / MwSt / Brutto
   const s5 = getSheet("Table 5");
@@ -2137,6 +2204,8 @@ function cmpStatusToEmoji(s){
 
 function runComparison(){
   // Voraussetzungen prüfen
+  __setProg(cmpBar, cmpProgressText, 0.05, "Vergleich: prüfe Voraussetzungen…");
+
   const orderRows = getAllOrderRows();
   if(!orderRows.length){
     alert("❗ Keine Aufträge vorhanden. Bitte erst Screenshots laden oder manuell Einträge erstellen.");
@@ -2155,6 +2224,10 @@ function runComparison(){
     if(!gsMap.has(id)) gsMap.set(id, []);
     gsMap.get(id).push(e);
   }
+  __setProg(cmpBar, cmpProgressText, 0.25, "Vergleich: baue Index (Gutschrift)…");
+__setProg(cmpBar, cmpProgressText, 0.40, "Vergleich: baue Index (Aufträge)…");
+
+__setProg(cmpBar, cmpProgressText, 0.55, "Vergleich: prüfe Aufträge gegen Gutschrift…");
 
   const ordMap = new Map(); // orderNo -> [orders]
   for(const o of orderRows){
@@ -2168,6 +2241,7 @@ function runComparison(){
 
   const out = [];
 
+__setProg(cmpBar, cmpProgressText, 0.80, "Vergleich: prüfe Gutschrift gegen Aufträge…");
   // 1) Orders -> check in Gutschrift
   for(const o of orderRows){
     const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
@@ -2235,6 +2309,7 @@ function runComparison(){
     }
   }
 
+
   // 2) Gutschrift -> check missing in Orders
   for(const [id, list] of gsMap.entries()){
     if(!ordMap.has(id)){
@@ -2267,8 +2342,10 @@ if(content) content.style.display = "block";
 
 // ✅ setzt Status auch in AUFTRÄGE + GUTSCHRIFT
 applyCompareStatuses();
-
+__setProg(cmpBar, cmpProgressText, 0.92, "Vergleich: rendern…");
 renderCompare();
+__setProg(cmpBar, cmpProgressText, 1.00, `✅ Vergleich fertig: ${cmpRows.length} Zeilen`);
+
 
 }
 
@@ -2353,6 +2430,12 @@ window.addEventListener("load", ()=>{
   const dash = document.getElementById("gsDashboard");
   const tabs = document.getElementById("gsTabs");
   const tbl  = document.getElementById("gsTable");
+  gsBar = document.getElementById('gsBar');
+gsProgressText = document.getElementById('gsProgressText');
+
+cmpBar = document.getElementById('cmpBar');
+cmpProgressText = document.getElementById('cmpProgressText');
+
   if(dash) dash.innerHTML = "";
   if(tabs) tabs.innerHTML = "";
   if(tbl)  tbl.innerHTML = "";

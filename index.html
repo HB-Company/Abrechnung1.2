@@ -191,6 +191,9 @@
 
   <div id="gsContent" class="accordion-content" style="display:none">
     <input type="file" accept="application/pdf,.xlsx" onchange="importGutschrift(this.files)" style="width:100%">
+	<div class="progress"><div id="gsBar" class="progress-bar"></div></div>
+<p id="gsProgressText" class="helper"></p>
+
 
     <button class="danger" onclick="clearGutschrift()" style="margin-top:8px;width:100%">
       🗑 Gutschrift löschen
@@ -219,6 +222,8 @@
     <button class="primary" onclick="runComparison()" style="width:100%">
       ▶ Vergleich starten
     </button>
+<div class="progress"><div id="cmpBar" class="progress-bar"></div></div>
+<p id="cmpProgressText" class="helper"></p>
 
     <div id="cmpSummary" class="dashboard" style="margin-top:10px;"></div>
     <div id="cmpTabs" class="tabs" style="margin-top:10px;"></div>
