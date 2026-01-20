@@ -747,6 +747,7 @@ function splitByFixLike(segment, parts, total){
 
 
 // --- OCR Digit Helper: typische OCR-Verwechslungen korrigieren (nur in Zahlen-Kontext) ---
+// OCR-Ziffern normalisieren (O->0, I/l/|->1, S->5, Z->2, B->8)
 function __normalizeOcrDigits(raw){
   return String(raw || "")
     .replace(/[Oo]/g, "0")
@@ -757,46 +758,56 @@ function __normalizeOcrDigits(raw){
 }
 
 function digitsOnly(x){
-  return String(x || "").replace(/\D/g, "");
+  return __normalizeOcrDigits(x).replace(/\D/g, "");
 }
+
+/**
+ * Bestellnr pro "Auftrags-Block" / Zeile extrahieren.
+ * Regel: NIMM die erste plausible Nummer DIREKT hinter Fixiert/Fix... (OCR tolerant)
+ * und zwar nur aus einem kurzen Fenster nach dem Wort (damit nicht der nächste Kunde geklaut wird).
+ */
 function extractOrderNoFromRow(rowText){
-  // Genau wie in der “guten alten Version”: bevorzugt "Fixiert <nummer>"
-  // (mit leichter OCR-Normalisierung, aber gleiche Logik)
   const s0 = String(rowText || "")
     .replace(/\u00A0/g, " ")
-    .replace(/\u202F/g, " ");
+    .replace(/\u202F/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const s = s0
-    .replace(/[Oo]/g, "0")
-    .replace(/[Il|]/g, "1")
-    .replace(/[Ss]/g, "5")
-    .replace(/[Zz]/g, "2")
-    .replace(/[Bb]/g, "8");
+  const s = __normalizeOcrDigits(s0);
 
-  // 1) Fixiert <digits...>
-  let m = s.match(/Fixiert\s+([0-9][0-9\s-]{6,20})/i);
-  if(m){
-    const d = digitsOnly(m[1]);
-    if(d.length >= 7 && d.length <= 14) return d;
-  }
-
-  // 2) Fallback: Bestellung/Bestellnr/Bestellnummer <digits...>
-  m = s.match(/Bestell(?:ung|nr|nummer)?\s*[:#]?\s*([0-9][0-9\s-]{6,20})/i);
-  if(m){
-    const d = digitsOnly(m[1]);
-    if(d.length >= 7 && d.length <= 14) return d;
-  }
-
-  // 3) letzter Fallback: deine bestehende extractOrderNo nutzen (falls vorhanden)
-  try{
-    if(typeof extractOrderNo === "function"){
-      const d = extractOrderNo(s);
-      if(d) return d;
+  // 1) "Fixiert" OCR-tolerant: Fix..., Fhriert, Fixlert etc.
+  // Wir holen NUR in einem kurzen Lookahead-Fenster nach dem Match die Ziffern.
+  const fixRe = /\b(?:Fix\w{0,8}|F\w{2,10}rt)\b/ig;
+  let m;
+  while((m = fixRe.exec(s)) !== null){
+    const after = s.slice(m.index, m.index + 60); // <- wichtig: kleines Fenster!
+    const n = after.match(/(?:Fix\w{0,8}|F\w{2,10}rt)[^0-9]{0,10}([0-9][0-9 \-]{6,20})/i);
+    if(n){
+      const d = digitsOnly(n[1]);
+      if(d.length >= 7 && d.length <= 14) return d;
     }
-  }catch(e){}
+  }
+
+  // 2) Falls OCR wirklich die Spalte "Bestellung" schreibt
+  // (auch hier: kleines Fenster nach dem Wort)
+  const b = s.match(/Bestell(?:ung|nr|nummer)?[^0-9]{0,10}([0-9][0-9 \-]{6,20})/i);
+  if(b){
+    const d = digitsOnly(b[1]);
+    if(d.length >= 7 && d.length <= 14) return d;
+  }
+
+  // 3) Fallback: erste "gute" lange Zahl (7..14), aber NICHT die /15 Marker
+  // => wir ignorieren direkt Muster wie 7/15
+  const cands = s.match(/(?:\d[\d \-]*){7,20}/g) || [];
+  for(const c of cands){
+    if(/\d+\s*\/\s*\d+/.test(c)) continue; // 7/15 usw
+    const d = digitsOnly(c);
+    if(d.length >= 7 && d.length <= 14) return d;
+  }
 
   return "";
 }
+
 
 
 // --- Erwartete Zeilenzahl aus 1/15, 7/13, 10/17 etc. ---
@@ -955,7 +966,8 @@ function parseOCR(text){
       const nextIdx = (i < matches.length - 1) ? matches[i+1].idx : Math.min(raw.length, hit.idx + 750);
       const chunk = raw.slice(prevIdx, nextIdx).replace(/\s+/g," ").trim();
 
-      const orderNo = extractOrderNoFromRow(chunk);   // oder raw / l / block – je nachdem wie die Variable dort heißt
+      const orderNo = extractOrderNoFromRow(chunk);
+   // oder raw / l / block – je nachdem wie die Variable dort heißt
 
       const artikelClean = cleanArtikelOneCustomer(chunk, hit.time);
 
@@ -1346,59 +1358,49 @@ function jumpToGutschrift(orderNo){
 
 
 function renderOrders(){
-  const list =
-    activeTab === "ALL" ? [...Object.values(days).flat()] :
-    activeTab === "UNK" ? (unknown || []) :
+  let list =
+    activeTab=="ALL" ? [...Object.values(days).flat()] :
+    activeTab=="UNK" ? unknown :
     (days[activeTab] || []);
 
   __uiOrdersRef = list;
 
-  const pkgs = Array.isArray(packages) ? packages : [];
+  let html = '<tr><th>Datum</th><th>Uhrzeit</th><th>Bestellnr</th><th>Artikel</th><th>Paket</th><th>Preis €</th></tr>';
 
-  // Header
-  const html = [];
-  html.push('<tr><th>Datum</th><th>Uhrzeit</th><th>Bestellnr</th><th>Artikel</th><th>Paket</th><th>Preis €</th></tr>');
-
-  for(let i=0; i<list.length; i++){
-    const o = list[i] || {};
+  for(let i=0;i<list.length;i++){
+    const o = list[i];
     const on = normalizeOrderNo(o.orderNo);
 
-    // Paket-Select (Pakete sind meist wenige -> ok)
-    let sel = `<select onchange="assignPkg(this.value,${i})"><option value=""></option>`;
-    for(let j=0; j<pkgs.length; j++){
-      const p = pkgs[j];
-      if(!p) continue;
-      const val = escAttr(p.name || "");
-      const selected = (p.name === o.package) ? "selected" : "";
-      sel += `<option value="${val}" ${selected}>${escAttr(p.name || "")}</option>`;
+    let sel = '<select onchange="assignPkg(this.value,'+i+')"><option value=""></option>';
+    for(const p of packages){
+      sel += `<option value="${p.name}" ${p.name==o.package?'selected':''}>${p.name}</option>`;
     }
-    sel += `</select>`;
+    sel += '</select>';
 
-    // Bestellnr: Input + Jump(GS) + Status
-    const orderCell =
-      `<div class="ord-cell">` +
-        `<input class="ord-input" inputmode="numeric" placeholder="Bestellnr" ` +
-          `value="${escAttr(on)}" onchange="setWorkOrderNo(${i}, this.value)">` +
-        (on ? `<button type="button" class="jump-btn" onclick="jumpToGutschrift('${escAttr(on)}')">GS</button>` : ``) +
-        statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`) +
-      `</div>`;
+    const orderCell = `
+      <div class="ord-cell">
+        <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
+               value="${escAttr(on)}"
+               onchange="setWorkOrderNo(${i}, this.value)">
+        ${on ? `<button type="button" class="jump-btn" onclick="jumpToGutschrift('${on}')">GS</button>` : ""}
+        ${statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`)}
+      </div>
+    `;
 
-    const trClass = `${o.package ? "good" : "bad"} ${o.slot || ""}`.trim();
-
-    html.push(
-      `<tr class="${trClass}" data-orderno="${escAttr(on)}">` +
-        `<td data-label="Datum">${escAttr(o.date || "")}</td>` +
-        `<td data-label="Uhrzeit">${escAttr(o.time || "")}</td>` +
-        `<td data-label="Bestellnr">${orderCell}</td>` +
-        `<td data-label="Artikel">${escAttr(o.artikel || "")}</td>` +
-        `<td data-label="Paket">${sel}</td>` +
-        `<td data-label="Preis €">${Number(o.price || 0)}</td>` +
-      `</tr>`
-    );
+    html += `
+      <tr class="${o.package?'good':'bad'} ${o.slot}" data-orderno="${escAttr(on)}">
+        <td data-label="Datum">${o.date||''}</td>
+        <td data-label="Uhrzeit">${o.time||''}</td>
+        <td data-label="Bestellnr">${orderCell}</td>
+        <td data-label="Artikel">${o.artikel||''}</td>
+        <td data-label="Paket">${sel}</td>
+        <td data-label="Preis €">${o.price||0}</td>
+      </tr>`;
   }
 
-  orderTable.innerHTML = html.join("");
+  orderTable.innerHTML = html;
 }
+
 
 
 
