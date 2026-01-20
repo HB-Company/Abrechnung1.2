@@ -1234,40 +1234,7 @@ function flashRow(tr){
 
 // Springe zu Aufträge (Arbeit) anhand Bestellnr
 /* ---- Jump: Gutschrift -> Work ---- */
-function jumpToWork(orderNo){
-  const on = normalizeOrderNo(orderNo);
-  if(!on) return;
 
-  // Work/Arbeit-Akkordeon öffnen wenn vorhanden
-  const workContent = document.getElementById("workContent");
-  if(workContent && workContent.style.display !== "block" && typeof toggleWork === "function"){
-    toggleWork();
-  }
-
-  // passenden Auftrag finden -> Tab Datum setzen
-  let foundDate = "";
-  for(const d of Object.keys(days || {})){
-    const arr = Array.isArray(days[d]) ? days[d] : [];
-    if(arr.some(o => normalizeOrderNo(o.orderNo) === on)){
-      foundDate = d;
-      break;
-    }
-  }
-  if(!foundDate && Array.isArray(unknown)){
-    if(unknown.some(o => normalizeOrderNo(o.orderNo) === on)){
-      foundDate = "UNK";
-    }
-  }
-
-  if(foundDate){
-    activeTab = foundDate === "UNK" ? "UNK" : foundDate;
-    renderAll();
-  }else{
-    renderAll();
-  }
-
-  setTimeout(() => scrollToOrderRow("orderTable", on), 60);
-}
 function moneyEq(a, b){
   const x = Number(a || 0);
   const y = Number(b || 0);
@@ -2181,67 +2148,95 @@ function flashRow(tr){
   setTimeout(()=>tr.classList.remove("flash"), 1200);
 }
 
-// Aufträge öffnen + zur Bestellnr springen
-function jumpToOrders(orderNo){
-  const id = digitsOnly(orderNo);
-  if(!id) return;
+// Zwischen Tabellen springen
+function jumpTo(target, orderNo){
+  __ensureDom(); // wichtig, damit auf PC nichts "tot" wird
 
-  // Arbeit öffnen
-  const wc = document.getElementById("workContent");
-  if(wc) wc.style.display = "block";
+  const on = normalizeOrderNo(orderNo);
+  if(!on) return;
 
-  // passenden Auftrag finden
-  const all = [];
-  for(const d of Object.keys(days)) if(Array.isArray(days[d])) all.push(...days[d]);
-  if(Array.isArray(unknown)) all.push(...unknown);
+  // --- helper: accordions öffnen (ohne toggle-fehler) ---
+  const openContent = (contentId, toggleFnName) => {
+    const el = document.getElementById(contentId);
+    if(!el) return;
+    if(el.style.display !== "block"){
+      // aria expanded setzen wenn möglich
+      const acc = document.querySelector(`.accordion[onclick*=${toggleFnName}]`);
+      if(acc) acc.setAttribute("aria-expanded", "true");
 
-  const hit = all.find(o => digitsOnly(o.orderNo) === id);
+      // toggle aufrufen falls vorhanden
+      const fn = window[toggleFnName];
+      if(typeof fn === "function") fn();
 
-  if(hit && hit.date){
-    activeTab = hit.date;
-  } else if(hit && !hit.date){
-    activeTab = "UNK";
-  } else {
-    activeTab = "ALL";
+      el.style.display = "block";
+    }
+  };
+
+  // --- helper: scroll + flash ---
+  const scrollAndFlash = (tableId, on2) => {
+    const tbl = document.getElementById(tableId);
+    if(!tbl) return;
+    const row = tbl.querySelector(`tr[data-orderno="${on2}"]`);
+    if(!row) return;
+
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("row-flash");
+    setTimeout(() => row.classList.remove("row-flash"), 1200);
+  };
+
+  if(target === "GS"){
+    // 1) Gutschrift öffnen
+    openContent("gsContent", "toggleGutschrift");
+
+    // 2) passenden GS-Eintrag finden und Tab setzen
+    const hit = (Array.isArray(gsEntries) ? gsEntries : [])
+      .find(e => normalizeOrderNo(e.orderNo || e.beleg || e.fo) === on);
+
+    if(hit && hit.date){
+      if(typeof setGsTab === "function") setGsTab(hit.date);
+      else { gsActiveTab = hit.date; renderGutschriftAll(); }
+    } else {
+      renderGutschriftAll();
+    }
+
+    // 3) nach render scrollen
+    setTimeout(() => scrollAndFlash("gsTable", on), 80);
+    return;
   }
 
-  renderAll();
+  if(target === "AUF"){
+    // 1) Arbeit öffnen
+    openContent("workContent", "toggleWork");
 
-  // nach Render: Zeile markieren
-  requestAnimationFrame(() => {
-    const table = document.getElementById("orderTable");
-    if(!table) return;
-    const tr = table.querySelector(`td[data-label="Bestellnr"]`) 
-      ? Array.from(table.querySelectorAll("tr")).find(r => (r.innerText||"").includes(id))
-      : Array.from(table.querySelectorAll("tr")).find(r => (r.innerText||"").includes(id));
-    flashRow(tr);
-  });
+    // 2) passenden Auftrag finden (days oder unknown) -> Tab setzen
+    let foundTab = "";
+
+    for(const d of Object.keys(days || {})){
+      const arr = Array.isArray(days[d]) ? days[d] : [];
+      if(arr.some(o => normalizeOrderNo(o.orderNo) === on)){
+        foundTab = d;
+        break;
+      }
+    }
+    if(!foundTab && Array.isArray(unknown) && unknown.some(o => normalizeOrderNo(o.orderNo) === on)){
+      foundTab = "UNK";
+    }
+
+    activeTab = foundTab ? foundTab : "ALL";
+    renderAll();
+
+    // 3) nach render scrollen
+    setTimeout(() => scrollAndFlash("orderTable", on), 80);
+    return;
+  }
 }
+function jumpToGutschrift(orderNo){ return jumpTo("GS", orderNo); }
+function jumpToWork(orderNo){ return jumpTo("AUF", orderNo); }
+function jumpToOrders(orderNo){ return jumpTo("AUF", orderNo); }
+
 
 // Gutschrift öffnen + zur Bestellnr springen
-function jumpToGutschrift(orderNo){
-  const id = digitsOnly(orderNo);
-  if(!id) return;
 
-  // Gutschrift öffnen
-  const gs = document.getElementById("gsContent");
-  if(gs) gs.style.display = "block";
-
-  // wenn möglich auf Datum-Tab springen
-  const gHit = (gsEntries || []).find(e => digitsOnly(e.orderNo || e.beleg || e.fo) === id);
-  if(gHit && gHit.date) gsActiveTab = gHit.date;
-  else gsActiveTab = "ALL";
-
-  renderGutschriftAll();
-
-  // nach Render: Zeile markieren (wir fügen gleich data-orderno hinzu)
-  requestAnimationFrame(() => {
-    const tbl = document.getElementById("gsTable");
-    if(!tbl) return;
-    const tr = tbl.querySelector(`tr[data-orderno="${id}"]`) || Array.from(tbl.querySelectorAll("tr")).find(r => (r.innerText||"").includes(id));
-    flashRow(tr);
-  });
-}
 function cmpStatusToEmoji(s){
   // Status aus runComparison -> Emoji
   if(s === "OK") return "✅";
