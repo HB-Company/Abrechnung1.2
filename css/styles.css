@@ -1108,3 +1108,154 @@ button:disabled,
   width: 20px;
   height: 20px;
 }
+
+
+/* =========================================================
+   CLEANUP v2 (iPhone: keine Doppel-Linien, klarere Bereiche)
+   - überschreibt alte Section/Filter-Regeln weiter oben
+   ========================================================= */
+
+/* Kill any decorative pseudo-lines from older versions */
+.section::before,
+.section::after{
+  content: none !important;
+  display: none !important;
+}
+
+/* Single outer border only (no extra left stripes from nested sections) */
+.section{
+  --sec-accent: rgba(96,165,250,.95);        /* default */
+  --sec-bg: rgba(96,165,250,.08);
+  border: 1px solid var(--stroke) !important;
+  border-left: 10px solid var(--sec-accent) !important;
+  background: linear-gradient(180deg,
+    rgba(255,255,255,.16),
+    rgba(255,255,255,.08)
+  ) , var(--card) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* Distinct section accents (stronger alpha so iPhone shows it clearly) */
+.section.section-pkg{ --sec-accent: rgba(59,130,246,.95);  --sec-bg: rgba(59,130,246,.10); }
+.section.section-work{ --sec-accent: rgba(239,68,68,.95);  --sec-bg: rgba(239,68,68,.11); }
+.section.section-gs{  --sec-accent: rgba(34,197,94,.95);   --sec-bg: rgba(34,197,94,.10); }
+.section.section-cmp{ --sec-accent: rgba(245,158,11,.95);  --sec-bg: rgba(245,158,11,.11); }
+
+/* Sub-sections inside a section (e.g. "Manueller Eintrag") should NOT add another left line */
+.section.section-sub{
+  border-left: 0 !important;
+  background: rgba(255,255,255,.10) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+/* Work "red leitfaden": keep it subtle, but remove extra borders from inner blocks */
+.section-work .inner-block{
+  border-left: 0 !important;
+  background: rgba(255,255,255,.10) !important;
+  border: 1px solid var(--stroke) !important;
+}
+
+/* Make each step feel like a card, but with the red accent hint only once */
+.section-work .inner-block{
+  position: relative;
+  overflow: hidden;
+}
+.section-work .inner-block::before{
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  background: rgba(239,68,68,.40);
+  pointer-events: none;
+}
+
+/* Sticky Work Controls near the top of the work section */
+.work-controls{
+  position: sticky;
+  top: 10px;
+  z-index: 8;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px;
+  margin: 0 0 12px;
+  background: rgba(255,255,255,.14);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.work-controls button{ flex: 1 1 120px; }
+
+/* ===== Filters: remove "double outline" look ===== */
+.status-filter,
+.status-filters{
+  border: 1px solid var(--stroke) !important;
+  background: rgba(255,255,255,.12) !important;
+  box-shadow: none !important;
+}
+
+.status-filter label,
+.status-filters .sf-item{
+  background: rgba(255,255,255,.10) !important;
+  border: 1px solid rgba(148,163,184,.30) !important;
+  box-shadow: none !important;
+  border-radius: 999px !important;
+  padding: 10px 12px !important;
+  min-height: 46px;
+}
+
+/* Make checkboxes modern + consistent on iPhone */
+.status-filter input[type="checkbox"],
+.status-filters input[type="checkbox"]{
+  width: 20px !important;
+  height: 20px !important;
+  accent-color: var(--sec-accent);
+  transform: translateY(1px);
+}
+
+/* On small screens: 3 pills in one row (like your screenshots) */
+@media (max-width: 520px){
+  .status-filters,
+  .status-filter{
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .sf-title{
+    grid-column: 1 / -1;
+    margin-bottom: -2px;
+  }
+  .status-filter label,
+  .status-filters .sf-item{
+    justify-content: center;
+  }
+}
+
+/* ===== Buttons: clear disabled state (VG disabled) ===== */
+button[disabled],
+.jump-btn[disabled]{
+  opacity: .45 !important;
+  filter: grayscale(0.7);
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
+/* Blink highlight for the button you came from */
+@keyframes __blinkYellow {
+  0%,100% { box-shadow: 0 0 0 0 rgba(245,158,11,.0); background: rgba(245,158,11,.18); }
+  50% { box-shadow: 0 0 0 6px rgba(245,158,11,.25); background: rgba(245,158,11,.26); }
+}
+.btn-blink{
+  animation: __blinkYellow 1.1s ease-in-out 1;
+  border-color: rgba(245,158,11,.55) !important;
+}
+
+/* Table container: single border only */
+.table-wrap{
+  border: 1px solid var(--stroke) !important;
+  background: rgba(255,255,255,.08) !important;
+}
