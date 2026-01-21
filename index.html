@@ -82,7 +82,7 @@
 
   <div id="workContent" class="accordion-content" style="display:none">
     <!-- Arbeit Controls (sticky) -->
-    <div class="work-controls" role="group" aria-label="Arbeit Aktionen">
+    <div class="work-controls" role="group" aria-label="Arbeit Aktionen"> 
       <button class="danger" onclick="resetWork()">♻ Reset</button>
       <button class="ghost" onclick="saveWork()">⬇💾 Save</button>
 
@@ -171,11 +171,8 @@
 </div>
 
       </div>
-<div id="statusFilter" class="status-filter">
-  <label><input type="checkbox" value="✅" checked onchange="setStatusFilter()"> ✅</label>
-  <label><input type="checkbox" value="⚠️" checked onchange="setStatusFilter()"> ⚠️</label>
-  <label><input type="checkbox" value="❌" checked onchange="setStatusFilter()"> ❌</label>
-</div>
+
+<div id="workStatusFilters" class="status-filters"></div>
 
       <div id="tabs" class="tabs work-tabs"></div>
       <div class="table-wrap small-table">
@@ -183,7 +180,7 @@
       </div>
     </div>
 
-  </div>
+ </div> 
 </div>
 </div>
 
@@ -204,11 +201,7 @@
     </button>
 
     <div id="gsDashboard" class="dashboard" style="margin-top:10px;"></div>
-	<div id="gsStatusFilter" class="status-filter">
-  <label><input type="checkbox" value="✅" checked onchange="setGsStatusFilter()"> ✅</label>
-  <label><input type="checkbox" value="⚠️" checked onchange="setGsStatusFilter()"> ⚠️</label>
-  <label><input type="checkbox" value="❌" checked onchange="setGsStatusFilter()"> ❌</label>
-</div>
+	<div id="gsStatusFilters" class="status-filters"></div>
 
     <div id="gsTabs" class="tabs" style="margin-top:10px;"></div>
 
