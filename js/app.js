@@ -2660,7 +2660,7 @@ async function runComparison(){
         status: "NO_ID", orderNo: "",
         date: o.date||"", time: o.time||"", artikel: o.artikel||"",
         myPackage: o.package||"", myPrice: Number(o.price||0),
-        gsPrice: null, note: "Keine Bestellnr im Auftrag"
+        gsPrice: null, note: "Keine Bestellnr im AU"
       });
     }else{
       const matches = gsMap.get(id) || [];
@@ -2669,7 +2669,7 @@ async function runComparison(){
           status: "MISSING_GS", orderNo: id,
           date: o.date||"", time: o.time||"", artikel: o.artikel||"",
           myPackage: o.package||"", myPrice: Number(o.price||0),
-          gsPrice: null, note: "Bestellnr nicht in Gutschrift"
+          gsPrice: null, note: "Bestellnr nicht in GS"
         });
       }else{
         const g = matches[0];
@@ -2722,7 +2722,7 @@ async function runComparison(){
         myPackage: "",
         myPrice: null,
         gsPrice: Number(g.price||0),
-        note: `In Gutschrift, aber nicht in Aufträgen (GS mehrfach: ${list.length})`
+        note: `In GS, nicht AU (GS mehrfach: ${list.length})`
       });
     }
 
@@ -2785,8 +2785,8 @@ function renderCompare(){
     <div class="card"><b>Gesamt</b><br>${counts.ALL}</div>
     <div class="card"><b>✅ OK</b><br>${counts.OK}</div>
     <div class="card"><b>⚠ Preis</b><br>${counts.PRICE_DIFF}</div>
-    <div class="card"><b>❌ Fehlt GS</b><br>${counts.MISSING_GS}</div>
-    <div class="card"><b>❌ Fehlt Aufträge</b><br>${counts.MISSING_ORD}</div>
+    <div class="card"><b>❌📄 Fehlt GS</b><br>${counts.MISSING_GS}</div>
+    <div class="card"><b>❌🧾 Fehlt AUF</b><br>${counts.MISSING_ORD}</div>
     <div class="card"><b>ℹ Keine Nr</b><br>${counts.NO_ID}</div>
   `;
 
