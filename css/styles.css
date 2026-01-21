@@ -1259,3 +1259,24 @@ button[disabled],
   border: 1px solid var(--stroke) !important;
   background: rgba(255,255,255,.08) !important;
 }
+
+
+
+/* ---- Sticky layers fix (iPhone Safari): Tabs above tables ---- */
+.tabs{
+  z-index: 50; /* over table header/rows */
+}
+.work-tabs{
+  top: 12px; /* keep */
+}
+.table-wrap, table{
+  position: relative;
+  z-index: 1;
+}
+th{
+  z-index: 5;
+}
+
+
+/* Safari sticky hint */
+.tabs{ position: -webkit-sticky; position: sticky; top: 12px; }
