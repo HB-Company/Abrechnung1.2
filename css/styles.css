@@ -1421,3 +1421,28 @@ th{
 /* VG Preis-Details */
 .cmp-price-up   { background: rgba(34,197,94,.14) !important; }  /* App > GS  -> grün */
 .cmp-price-down { background: rgba(245,158,11,.16) !important; } /* GS  > App -> gelb */
+/* =========================
+   VG: Tab "Fehlt GS vs Fehlt AU"
+   ========================= */
+
+.cmp-daily td.gs-col,
+.cmp-daily th.gs-col{
+  background: rgba(34,197,94,.10) !important;   /* GS = grün */
+}
+
+.cmp-daily td.au-col,
+.cmp-daily th.au-col{
+  background: rgba(245,158,11,.12) !important;  /* AU = gelb */
+}
+
+.cmp-daily .pkglist{
+  font-weight: 800;
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.cmp-daily .muted{
+  color: var(--muted);
+  font-weight: 700;
+}

@@ -183,20 +183,8 @@ else if(activeTab === "UNK") filename = "tab-UNK.json";
 else filename = `tab-${activeTab.replace(/\./g,"-")}.json`;
 
 __downloadJson(filename, data);
+return;
 
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-
-  if(activeTab === "ALL") a.download = `alle-tabellen.json`;
-  else if(activeTab === "UNK") a.download = `tab-UNK.json`;
-  else a.download = `tab-${activeTab.replace(/\./g,"-")}.json`;
-
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 function importCurrentTab(files){
@@ -2098,7 +2086,6 @@ __setProg(gsBar, gsProgressText, 0.05, "Gutschrift: starte…");
     gsActiveTab = "ALL";
 
     if(name.endsWith(".xlsx")){
-		__setProg(gsBar, gsProgressText, 0.15, "Gutschrift: XLSX öffnen…");
 
       const parsed = await readGutschriftXlsx(file);
       gsEntries = parsed.entries || [];
@@ -2764,12 +2751,96 @@ async function runComparison(){
 }
 
 
+// ===== VG Daily Missing (Fehlt GS vs Fehlt AU) =====
+function __isoFromDdMmYyyy(d){
+  const m = String(d||"").match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "0000-00-00";
+}
+
+function __moneyDE(n){
+  const x = Number(n || 0);
+  // robust (iPhone ok)
+  try{
+    return x.toLocaleString("de-DE", { minimumFractionDigits:2, maximumFractionDigits:2 }) + " €";
+  }catch(e){
+    return x.toFixed(2).replace(".", ",") + " €";
+  }
+}
+
+function __pkgIconByName(name){
+  const p = (packages||[]).find(x => x && x.name === name);
+  return p ? (p.icon || "📦") : "📦";
+}
+
+function __activePkgNamesSet(){
+  const s = new Set();
+  (packages||[]).forEach(p => { if(p && p.show) s.add(p.name); });
+  return s;
+}
+
+function __pkgNameFromGsPrice(gsPrice){
+  // nur Pakete die show=true sind
+  const price = Number(gsPrice||0);
+  const active = (packages||[]).filter(p => p && p.show);
+  for(const p of active){
+    if(Math.abs(Number(p.price||0) - price) < 0.01) return p.name;
+  }
+  return ""; // nichts passendes
+}
+
+function __formatPkgCounts(map){
+  // map: name -> count
+  const entries = Object.entries(map||{}).filter(([_,c]) => c>0);
+  if(!entries.length) return "—";
+  entries.sort((a,b)=> b[1]-a[1] || String(a[0]).localeCompare(String(b[0])));
+  return entries.map(([name,c]) => `${c}×${__pkgIconByName(name)} ${name}`).join("  ");
+}
 
 function renderCompare(){
   const sumEl = document.getElementById("cmpSummary");
   const tabEl = document.getElementById("cmpTabs");
   const tbl = document.getElementById("cmpTable");
   if(!sumEl || !tabEl || !tbl) return;
+    // Daily missing stats vorbereiten
+const activeNames = __activePkgNamesSet();
+const daily = {}; // date -> { sumGs, sumAu, cntGs, cntAu, pkGs:{}, pkAu:{} }
+
+for(const r of (cmpRows||[])){
+  const date = String(r.date||"").trim();
+  if(!date) continue;
+
+  if(!daily[date]){
+    daily[date] = {
+      sumGs: 0, sumAu: 0,
+      cntGs: 0, cntAu: 0,
+      pkGs: {}, pkAu: {}
+    };
+  }
+
+  if(r.status === "MISSING_GS"){
+    // Auftrag fehlt in GS: nimm App-Preis + Paket aus Auftrag
+    daily[date].cntGs += 1;
+    daily[date].sumGs += Number(r.myPrice || 0);
+
+    const pn = String(r.myPackage||"").trim();
+    if(pn && activeNames.has(pn)){
+      daily[date].pkGs[pn] = (daily[date].pkGs[pn]||0) + 1;
+    }
+  }
+
+  if(r.status === "MISSING_ORD"){
+    // GS fehlt in AU: nimm GS-Preis + Paket über Preis-Match (nur show=true)
+    daily[date].cntAu += 1;
+    daily[date].sumAu += Number(r.gsPrice || 0);
+
+    const pn = __pkgNameFromGsPrice(r.gsPrice);
+    if(pn && activeNames.has(pn)){
+      daily[date].pkAu[pn] = (daily[date].pkAu[pn]||0) + 1;
+    }
+  }
+}
+
+const dailyCount = Object.keys(daily).length;
 
   const counts = {
     ALL: cmpRows.length,
@@ -2777,7 +2848,8 @@ function renderCompare(){
     PRICE_DIFF: cmpRows.filter(r=>r.status==="PRICE_DIFF").length,
     MISSING_GS: cmpRows.filter(r=>r.status==="MISSING_GS").length,
     MISSING_ORD: cmpRows.filter(r=>r.status==="MISSING_ORD").length,
-    NO_ID: cmpRows.filter(r=>r.status==="NO_ID").length
+    NO_ID: cmpRows.filter(r=>r.status==="NO_ID").length,
+	DAILY: dailyCount
   };
 
   // Summary Cards
@@ -2791,65 +2863,96 @@ function renderCompare(){
   `;
 
   // Tabs
-  tabEl.innerHTML = `
-    <span class="${cmpActiveTab==='ALL'?'active':''}" onclick="setCmpTab('ALL')">Alle (${counts.ALL})</span>
-    <span class="${cmpActiveTab==='PRICE_DIFF'?'active':''}" onclick="setCmpTab('PRICE_DIFF')">⚠ Preis (${counts.PRICE_DIFF})</span>
-    <span class="${cmpActiveTab==='MISSING_GS'?'active':''}" onclick="setCmpTab('MISSING_GS')">❌ Fehlt GS (${counts.MISSING_GS})</span>
-    <span class="${cmpActiveTab==='MISSING_ORD'?'active':''}" onclick="setCmpTab('MISSING_ORD')">❌ Fehlt Aufträge (${counts.MISSING_ORD})</span>
-    <span class="${cmpActiveTab==='NO_ID'?'active':''}" onclick="setCmpTab('NO_ID')">ℹ Keine Nr (${counts.NO_ID})</span>
-    <span class="${cmpActiveTab==='OK'?'active':''}" onclick="setCmpTab('OK')">✅ OK (${counts.OK})</span>
-  `;
+ tabEl.innerHTML = `
+  <span class="${cmpActiveTab==='ALL'?'active':''}" onclick="setCmpTab('ALL')">Alle (${counts.ALL})</span>
+  <span class="${cmpActiveTab==='PRICE_DIFF'?'active':''}" onclick="setCmpTab('PRICE_DIFF')">⚠ Preis (${counts.PRICE_DIFF})</span>
+  <span class="${cmpActiveTab==='DAILY'?'active':''}" onclick="setCmpTab('DAILY')">📅 Fehlt GS vs AU (${counts.DAILY})</span>
+  <span class="${cmpActiveTab==='MISSING_GS'?'active':''}" onclick="setCmpTab('MISSING_GS')">❌ Fehlt GS (${counts.MISSING_GS})</span>
+  <span class="${cmpActiveTab==='MISSING_ORD'?'active':''}" onclick="setCmpTab('MISSING_ORD')">❌ Fehlt AU (${counts.MISSING_ORD})</span>
+  <span class="${cmpActiveTab==='NO_ID'?'active':''}" onclick="setCmpTab('NO_ID')">ℹ Keine Nr (${counts.NO_ID})</span>
+  <span class="${cmpActiveTab==='OK'?'active':''}" onclick="setCmpTab('OK')">✅ OK (${counts.OK})</span>
+`;
+
 
   // Filter
-  const rows = cmpActiveTab==="ALL" ? cmpRows : cmpRows.filter(r=>r.status===cmpActiveTab);
+  // ===== Special Tab: DAILY (Fehlt GS vs Fehlt AU) =====
+if(cmpActiveTab === "DAILY"){
+  const dates = Object.keys(daily).sort((a,b)=> __isoFromDdMmYyyy(a).localeCompare(__isoFromDdMmYyyy(b)));
 
-  // Table
   tbl.innerHTML = `
     <tr>
-      <th>Status</th><th>Bestellnr</th><th>Datum</th><th>Uhrzeit</th>
-      <th>Auftrag</th><th>Paket</th><th>Preis (App)</th><th>Preis (GS)</th><th>Hinweis</th>
+      <th>Datum</th>
+      <th class="gs-col">Summe Fehlt in GS Preis</th>
+      <th class="au-col">Summe Fehlt in AU Preis</th>
+      <th class="gs-col">Summe der Aufträge die in GS fehlen</th>
+      <th class="au-col">Summe der Aufträge die in AU fehlen</th>
+      <th class="gs-col">Pakete Fehlt GS</th>
+      <th class="au-col">Pakete Fehlt AU</th>
     </tr>
   `;
 
-  for(const r of rows){
-    let cls = "";
-if(r.status === "OK"){
-  cls = "cmp-ok";
-}else if(r.status === "PRICE_DIFF"){
-  // Basis-Warn-Look + Richtung einfärben
-  const my = Number(r.myPrice ?? 0);
-  const gs = Number(r.gsPrice ?? 0);
-  if(my > gs) cls = "cmp-warn cmp-price-up";       // App > GS -> grün
-  else if(gs > my) cls = "cmp-warn cmp-price-down";// GS > App -> gelb
-  else cls = "cmp-warn";                           // gleich (sollte selten sein)
-}else{
-  cls = "cmp-bad";
+  for(const d of dates){
+    const x = daily[d];
+    const pkGs = __formatPkgCounts(x.pkGs);
+    const pkAu = __formatPkgCounts(x.pkAu);
+
+    tbl.innerHTML += `
+      <tr class="cmp-daily" data-date="${escAttr(d)}">
+        <td><b>${d}</b></td>
+
+        <td class="gs-col"><b>${__moneyDE(x.sumGs)}</b></td>
+        <td class="au-col"><b>${__moneyDE(x.sumAu)}</b></td>
+
+        <td class="gs-col"><b>${x.cntGs}</b> <span class="muted">fehlt in GS</span></td>
+        <td class="au-col"><b>${x.cntAu}</b> <span class="muted">fehlt in AU</span></td>
+
+        <td class="gs-col pkglist">${pkGs}</td>
+        <td class="au-col pkglist">${pkAu}</td>
+      </tr>
+    `;
+  }
+  return;
 }
 
+// ===== Normal Tabs (wie bisher) =====
+const rows = (cmpActiveTab==="ALL") ? cmpRows : cmpRows.filter(r=>r.status===cmpActiveTab);
 
-    const on = normalizeOrderNo(r.orderNo);
-
-tbl.innerHTML += `
-  <tr class="${cls}" data-orderno="${escAttr(on)}">
-    <td>${r.status}</td>
-    <td>
-      <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
-        <b>${on || ""}</b>
-        <button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>
-        <button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>
-      </div>
-    </td>
-    <td>${r.date||""}</td>
-    <td>${r.time||""}</td>
-    <td>${r.artikel||""}</td>
-    <td>${r.myPackage||""}</td>
-    <td>${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
-    <td>${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
-    <td>${r.note||""}</td>
+tbl.innerHTML = `
+  <tr>
+    <th>Status</th><th>Bestellnr</th><th>Datum</th><th>Uhrzeit</th>
+    <th>Auftrag</th><th>Paket</th><th>Preis (App)</th><th>Preis (GS)</th><th>Hinweis</th>
   </tr>
 `;
 
-  }
+for(const r of rows){
+  let cls = "";
+  if(r.status==="OK") cls="cmp-ok";
+  else if(r.status==="PRICE_DIFF") cls="cmp-warn";
+  else cls="cmp-bad";
+
+  const on = normalizeOrderNo(r.orderNo);
+
+  tbl.innerHTML += `
+    <tr class="${cls}" data-orderno="${escAttr(on)}">
+      <td>${r.status}</td>
+      <td>
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
+          <b>${on || ""}</b>
+          <button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>
+          <button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>
+        </div>
+      </td>
+      <td>${r.date||""}</td>
+      <td>${r.time||""}</td>
+      <td>${r.artikel||""}</td>
+      <td>${r.myPackage||""}</td>
+      <td>${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
+      <td>${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
+      <td>${r.note||""}</td>
+    </tr>
+  `;
+}
+
 }
 
 
