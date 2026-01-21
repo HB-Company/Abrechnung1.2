@@ -1039,7 +1039,7 @@ button:disabled,
 
 /* Work Controls sticky */
 .work-controls{
-  position: sticky;
+  position: static;
   bottom: 12px;
   z-index: 9;
 
@@ -1173,7 +1173,7 @@ button:disabled,
 
 /* Sticky Work Controls near the top of the work section */
 .work-controls{
-  position: sticky;
+  position: static;
   top: 10px;
   z-index: 8;
   display: flex;
@@ -1291,19 +1291,24 @@ th{
 .section-work .inner-block{ overflow: visible !important; }
 
 /* keep Work controls visible and above tabs */
+/* ================= PATCH: Work Tabs Abstand wie Gutschrift ================= */
+
+/* Work-Controls sollen NICHT sticky sein (scrollen normal mit) */
 .section-work .work-controls{
-  position: sticky !important;
-  top: 10px !important;
+  position: static !important;
+  top: auto !important;
   bottom: auto !important;
-  z-index: 60 !important;
+  z-index: auto !important;
 }
 
-/* tabs stick directly under the controls bar */
+/* Work-Tabs sollen sticky sein – aber mit kleinem Abstand wie bei Gutschrift */
 .section-work .work-tabs{
+  position: -webkit-sticky !important;
   position: sticky !important;
-  top: calc(10px + var(--work-sticky-offset)) !important;
-  z-index: 55 !important;
+  top: 10px !important;          /* <- wie .tabs Standard */
+  margin-top: 10px !important;   /* optional: wenn du oben “Luft” willst */
 }
+
 
 /* when controls wrap on small screens, give tabs a bit more space */
 @media (max-width: 520px){
@@ -1325,19 +1330,24 @@ th{
 .section-work .inner-block{ overflow: visible !important; }
 
 /* Work controls should be the first sticky layer */
+/* ================= PATCH: Work Tabs Abstand wie Gutschrift ================= */
+
+/* Work-Controls sollen NICHT sticky sein (scrollen normal mit) */
 .section-work .work-controls{
-  position: sticky !important;
-  top: 10px !important;
+  position: static !important;
+  top: auto !important;
   bottom: auto !important;
-  z-index: 60 !important;
+  z-index: auto !important;
 }
 
-/* Work tabs should stick under work-controls */
+/* Work-Tabs sollen sticky sein – aber mit kleinem Abstand wie bei Gutschrift */
 .section-work .work-tabs{
+  position: -webkit-sticky !important;
   position: sticky !important;
-  top: calc(10px + var(--work-sticky-offset)) !important;
-  z-index: 55 !important;
+  top: 10px !important;          /* <- wie .tabs Standard */
+  margin-top: 10px !important;   /* optional: wenn du oben “Luft” willst */
 }
+
 
 /* Make sure table headers don't cover sticky tabs */
 .section-work table th{ z-index: 10; }
