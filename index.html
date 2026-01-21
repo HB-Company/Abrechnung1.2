@@ -32,7 +32,6 @@
 </header>
 
 <!-- ================== PAKETE ================== -->
-<!-- Pakete -->
 <div class="section section-pkg">
   <div class="accordion" onclick="togglePkg()" aria-expanded="false">📦 Pakete verwalten</div>
   <div id="pkgContent" class="accordion-content">
@@ -77,28 +76,23 @@
 </div>
 
 <!-- ================== ARBEIT (1–3) ================== -->
-<!-- Arbeit -->
+
 <div class="section section-work">
   <div class="accordion" onclick="toggleWork()" aria-expanded="false">🧾 Arbeit (1–3)</div>
 
   <div id="workContent" class="accordion-content" style="display:none">
-  <!-- Arbeit Toolbar (sticky) -->
-<div class="work-toolbar">
-  <button class="danger" onclick="resetWork()">♻ Reset</button>
+    <!-- Arbeit Controls (sticky) -->
+    <div class="work-controls" role="group" aria-label="Arbeit Aktionen">
+      <button class="danger" onclick="resetWork()">♻ Reset</button>
+      <button class="ghost" onclick="saveWork()">⬇💾 Save</button>
 
-  <button class="ghost" onclick="saveWork()">⬇💾 Save</button>
+      <input type="file" id="importWorkFile" accept=".json" style="display:none"
+             onchange="loadWork(this.files)">
+      <button class="ghost" onclick="document.getElementById('importWorkFile').click()">⬆📁 Load</button>
+    </div>
 
-  <input type="file" id="importWorkFile" accept=".json" style="display:none"
-         onchange="loadWork(this.files)">
 
-  <button class="ghost" onclick="document.getElementById('importWorkFile').click()">
-    ⬆📁 Load
-  </button>
-</div>
-
-<div class="work-steps">
     <!-- 1️⃣ Screenshots -->
- <div class="inner-block work-step step-1">
     <div class="inner-block">
       <div class="section-title">
         <h2>1️⃣ Screenshot hochladen</h2>
@@ -120,8 +114,7 @@
       <div class="progress"><div id="bar" class="progress-bar"></div></div>
       <p id="progressText" class="helper"></p>
     </div>
-</div>
-<div class="inner-block work-step step-2">
+
     <!-- 2️⃣ Übersicht -->
     <div class="inner-block">
       <div class="section-title">
@@ -130,15 +123,13 @@
       </div>
       <div id="dashboard" class="dashboard"></div>
     </div>
-</div>
-<div class="inner-block work-step step-3">
+
     <!-- 3️⃣ Aufträge -->
     <div class="inner-block">
       <div class="section-title">
         <h2>3️⃣ Aufträge</h2>
         <span class="badge">Tabelle</span>
       </div>
-	  </div>
 
       <!-- Manueller Eintrag (Accordion) -->
       <div class="section" style="margin:10px 0 0; padding:12px;">
@@ -180,9 +171,11 @@
 </div>
 
       </div>
-
-
-<div id="workStatusFilters" class="status-filters"></div>
+<div id="statusFilter" class="status-filter">
+  <label><input type="checkbox" value="✅" checked onchange="setStatusFilter()"> ✅</label>
+  <label><input type="checkbox" value="⚠️" checked onchange="setStatusFilter()"> ⚠️</label>
+  <label><input type="checkbox" value="❌" checked onchange="setStatusFilter()"> ❌</label>
+</div>
 
       <div id="tabs" class="tabs"></div>
       <div class="table-wrap small-table">
@@ -191,50 +184,42 @@
     </div>
 
   </div>
-  </div>
 </div>
 </div>
 
 
 
 <!-- ================== GUTSCHRIFT ================== -->
-<!-- Gutschrift -->
 <div class="section section-gs">
-  <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">
-    📄 Gutschrift (PDF / XLSX)
-  </div>
+  <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">📄 Gutschrift (PDF / XLSX)</div>
 
   <div id="gsContent" class="accordion-content" style="display:none">
+    <input type="file" accept="application/pdf,.xlsx" onchange="importGutschrift(this.files)" style="width:100%">
+	<div class="progress"><div id="gsBar" class="progress-bar"></div></div>
+<p id="gsProgressText" class="helper"></p>
 
-    <input type="file" accept="application/pdf,.xlsx"
-           onchange="importGutschrift(this.files)" style="width:100%">
-
-    <div class="progress"><div id="gsBar" class="progress-bar"></div></div>
-    <p id="gsProgressText" class="helper"></p>
 
     <button class="danger" onclick="clearGutschrift()" style="margin-top:8px;width:100%">
       🗑 Gutschrift löschen
     </button>
 
     <div id="gsDashboard" class="dashboard" style="margin-top:10px;"></div>
+	<div id="gsStatusFilter" class="status-filter">
+  <label><input type="checkbox" value="✅" checked onchange="setGsStatusFilter()"> ✅</label>
+  <label><input type="checkbox" value="⚠️" checked onchange="setGsStatusFilter()"> ⚠️</label>
+  <label><input type="checkbox" value="❌" checked onchange="setGsStatusFilter()"> ❌</label>
+</div>
 
-    <!-- ✅ HIER: Filterleiste -->
-    <div id="gsStatusFilters" class="status-filters" style="margin-top:10px;"></div>
-
-    <!-- ✅ HIER: Tabs (du brauchst das Element!) -->
     <div id="gsTabs" class="tabs" style="margin-top:10px;"></div>
 
-    <div class="table-wrap small-table" style="margin-top:10px;">
+    <div class="table-wrap small-table">
       <table id="gsTable"></table>
     </div>
-
   </div>
 </div>
 
 
-
 <!-- ================== VERGLEICHSLISTE ================== -->
-<!-- Vergleich -->
 <div class="section section-cmp">
   <div class="accordion" onclick="toggleCompare()" aria-expanded="false">🔎 Vergleichsliste</div>
 
@@ -259,5 +244,6 @@
 
   </div>
 </div>
+</div><!-- /.container -->
 </body>
 </html>

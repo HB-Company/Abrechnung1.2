@@ -973,3 +973,138 @@ button:disabled,
   font-weight: 900;
   font-size: 14px;
 }
+/* =========================================================
+   Section Accents (sichtbar auf iPhone/Safari)
+   ========================================================= */
+
+.section{
+  position: relative;
+}
+.section > *{
+  position: relative;
+  z-index: 1;
+}
+
+.section.section-pkg{
+  --section-accent: rgba(96,165,250,.95);
+  --section-tint: rgba(96,165,250,.18);
+  border-left: 6px solid var(--section-accent);
+  background:
+    linear-gradient(135deg, var(--section-tint), rgba(255,255,255,0) 60%),
+    var(--card);
+}
+.section.section-work{
+  --section-accent: rgba(239,68,68,.95);
+  --section-tint: rgba(239,68,68,.16);
+  border-left: 6px solid var(--section-accent);
+  background:
+    linear-gradient(135deg, var(--section-tint), rgba(255,255,255,0) 60%),
+    var(--card);
+}
+.section.section-gs{
+  --section-accent: rgba(34,197,94,.95);
+  --section-tint: rgba(34,197,94,.16);
+  border-left: 6px solid var(--section-accent);
+  background:
+    linear-gradient(135deg, var(--section-tint), rgba(255,255,255,0) 60%),
+    var(--card);
+}
+.section.section-cmp{
+  --section-accent: rgba(245,158,11,.95);
+  --section-tint: rgba(245,158,11,.16);
+  border-left: 6px solid var(--section-accent);
+  background:
+    linear-gradient(135deg, var(--section-tint), rgba(255,255,255,0) 60%),
+    var(--card);
+}
+
+.section.section-pkg::before,
+.section.section-work::before,
+.section.section-gs::before,
+.section.section-cmp::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  border-radius: inherit;
+  background: radial-gradient(900px 320px at 20% 0%, rgba(255,255,255,.18), transparent 60%);
+  z-index: 0;
+}
+
+/* Arbeit – roter Leitfaden */
+.section-work .inner-block{
+  border-left: 4px solid rgba(239,68,68,.45);
+  padding-left: 12px;
+}
+
+/* Work Controls sticky */
+.work-controls{
+  position: sticky;
+  bottom: 12px;
+  z-index: 9;
+
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+
+  padding: 10px;
+  margin: 6px 0 12px;
+
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,.14);
+  box-shadow: var(--shadow-soft);
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.section-work .work-controls{
+  background: rgba(239,68,68,.10);
+}
+
+/* Filter/Checkboxen frischer */
+.status-filter input,
+.status-filters input{
+  accent-color: var(--section-accent, var(--accent2));
+}
+
+.status-filter,
+.status-filters{
+  gap: 8px;
+  padding: 10px;
+}
+
+.status-filter label,
+.status-filters .sf-item{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 10px 12px;
+  border-radius: 999px;
+
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(148,163,184,.35);
+  box-shadow: var(--shadow-soft);
+}
+
+.status-filter label:has(input:checked),
+.status-filters .sf-item:has(input:checked){
+  border-color: rgba(34,197,94,.45);
+  background: rgba(34,197,94,.10);
+}
+
+/* iOS < 16: :has() kann fehlen -> ohne checked-highlight trotzdem ok */
+@supports not (selector(:has(*))){
+  .status-filter label,
+  .status-filters .sf-item{
+    border-color: rgba(148,163,184,.30);
+  }
+}
+
+.status-filter input,
+.status-filters input{
+  width: 20px;
+  height: 20px;
+}
