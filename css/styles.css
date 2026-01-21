@@ -1280,3 +1280,71 @@ th{
 
 /* Safari sticky hint */
 .tabs{ position: -webkit-sticky; position: sticky; top: 12px; }
+
+/* =================== PATCH v4: Work Tabs Sticky Fix (iPhone) ===================
+   Problem: iOS Safari + overflow:hidden/backdrop-filter can break sticky.
+   Also Work Controls + Tabs need stacked sticky offsets.
+*/
+:root{ --work-sticky-offset: 74px; }
+
+/* allow sticky inside work blocks on iOS */
+.section-work .inner-block{ overflow: visible !important; }
+
+/* keep Work controls visible and above tabs */
+.section-work .work-controls{
+  position: sticky !important;
+  top: 10px !important;
+  bottom: auto !important;
+  z-index: 60 !important;
+}
+
+/* tabs stick directly under the controls bar */
+.section-work .work-tabs{
+  position: sticky !important;
+  top: calc(10px + var(--work-sticky-offset)) !important;
+  z-index: 55 !important;
+}
+
+/* when controls wrap on small screens, give tabs a bit more space */
+@media (max-width: 520px){
+  :root{ --work-sticky-offset: 90px; }
+}
+
+/* ensure table headers don't sit above the tabs */
+.section-work table th{
+  z-index: 5;
+}
+
+/* =================== PATCH v4: Work Tabs Sticky Fix (iPhone) ===================
+   - Make Work-controls stick at top
+   - Make Work tabs stick directly under the controls
+   - Remove overflow clipping that breaks sticky on iOS
+*/
+
+/* iOS sticky fix: overflow hidden ancestor breaks position:sticky */
+.section-work .inner-block{ overflow: visible !important; }
+
+/* Work controls should be the first sticky layer */
+.section-work .work-controls{
+  position: sticky !important;
+  top: 10px !important;
+  bottom: auto !important;
+  z-index: 60 !important;
+}
+
+/* Work tabs should stick under work-controls */
+.section-work .work-tabs{
+  position: sticky !important;
+  top: calc(10px + var(--work-sticky-offset)) !important;
+  z-index: 55 !important;
+}
+
+/* Make sure table headers don't cover sticky tabs */
+.section-work table th{ z-index: 10; }
+.section-work .tabs{ z-index: 55 !important; }
+
+/* On very small screens, controls can wrap -> give more space */
+@media (max-width: 520px){
+  :root{ --work-sticky-offset: 92px; }
+}
+
