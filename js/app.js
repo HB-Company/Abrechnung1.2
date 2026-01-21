@@ -178,14 +178,13 @@ function exportCurrentTab(){
   }
 
   let filename = "tabellen.json";
-if(activeTab === "ALL") filename = "alle-tabellen.json";
-else if(activeTab === "UNK") filename = "tab-UNK.json";
-else filename = `tab-${activeTab.replace(/\./g,"-")}.json`;
+  if(activeTab === "ALL") filename = "alle-tabellen.json";
+  else if(activeTab === "UNK") filename = "tab-UNK.json";
+  else filename = `tab-${activeTab.replace(/\./g,"-")}.json`;
 
-__downloadJson(filename, data);
-return;
-
+  __downloadJson(filename, data);
 }
+
 
 function importCurrentTab(files){
   if(!files || files.length === 0){
@@ -2822,6 +2821,8 @@ function renderCompare(){
   const tbl = document.getElementById("cmpTable");
   if(!sumEl || !tabEl || !tbl) return;
     // Daily missing stats vorbereiten
+
+  // ===== Daily missing stats vorbereiten (Fehlt GS vs Fehlt AU) =====
 const activeNames = __activePkgNamesSet();
 const daily = {}; // date -> { sumGs, sumAu, cntGs, cntAu, pkGs:{}, pkAu:{} }
 
@@ -2830,15 +2831,10 @@ for(const r of (cmpRows||[])){
   if(!date) continue;
 
   if(!daily[date]){
-    daily[date] = {
-      sumGs: 0, sumAu: 0,
-      cntGs: 0, cntAu: 0,
-      pkGs: {}, pkAu: {}
-    };
+    daily[date] = { sumGs:0, sumAu:0, cntGs:0, cntAu:0, pkGs:{}, pkAu:{} };
   }
 
   if(r.status === "MISSING_GS"){
-    // Auftrag fehlt in GS: nimm App-Preis + Paket aus Auftrag
     daily[date].cntGs += 1;
     daily[date].sumGs += Number(r.myPrice || 0);
 
@@ -2849,7 +2845,6 @@ for(const r of (cmpRows||[])){
   }
 
   if(r.status === "MISSING_ORD"){
-    // GS fehlt in AU: nimm GS-Preis + Paket über Preis-Match (nur show=true)
     daily[date].cntAu += 1;
     daily[date].sumAu += Number(r.gsPrice || 0);
 
@@ -2860,17 +2855,24 @@ for(const r of (cmpRows||[])){
   }
 }
 
-const dailyCount = Object.keys(daily).length;
+// NUR Tage zählen/anzeigen, wo wirklich was fehlt (nicht 0/0)
+const dailyDates = Object.keys(daily).filter(d => {
+  const x = daily[d];
+  return (x.cntGs > 0) || (x.cntAu > 0) || (Math.abs(x.sumGs) > 0.005) || (Math.abs(x.sumAu) > 0.005);
+});
+const dailyCount = dailyDates.length;
+
 
   const counts = {
-    ALL: cmpRows.length,
-    OK: cmpRows.filter(r=>r.status==="OK").length,
-    PRICE_DIFF: cmpRows.filter(r=>r.status==="PRICE_DIFF").length,
-    MISSING_GS: cmpRows.filter(r=>r.status==="MISSING_GS").length,
-    MISSING_ORD: cmpRows.filter(r=>r.status==="MISSING_ORD").length,
-    NO_ID: cmpRows.filter(r=>r.status==="NO_ID").length,
-	DAILY: dailyCount
-  };
+  ALL: cmpRows.length,
+  OK: cmpRows.filter(r=>r.status==="OK").length,
+  PRICE_DIFF: cmpRows.filter(r=>r.status==="PRICE_DIFF").length,
+  MISSING_GS: cmpRows.filter(r=>r.status==="MISSING_GS").length,
+  MISSING_ORD: cmpRows.filter(r=>r.status==="MISSING_ORD").length,
+  NO_ID: cmpRows.filter(r=>r.status==="NO_ID").length,
+  DAILY: dailyCount
+};
+
 
   // Summary Cards
   sumEl.innerHTML = `
@@ -2894,24 +2896,14 @@ const dailyCount = Object.keys(daily).length;
 `;
 
 
-  // Filter
-  // ===== Special Tab: DAILY (Fehlt GS vs Fehlt AU) =====
+
+  // Filter für was ?
+// ===== Special Tab: DAILY (Fehlt GS vs Fehlt AU) =====
 if(cmpActiveTab === "DAILY"){
-  const dates = Object.keys(daily)
-  .filter(d => {
-    const x = daily[d];
-    if(!x) return false;
-
-    // ✅ Nur Tage zeigen wo wirklich was fehlt
-    const hasMissing = (Number(x.cntGs||0) > 0) || (Number(x.cntAu||0) > 0);
-
-    // Optional extra-sicher: Summe muss auch >0 sein, falls cnt mal kaputt wäre
-    const hasMoney = (Math.abs(Number(x.sumGs||0)) > 0.0001) || (Math.abs(Number(x.sumAu||0)) > 0.0001);
-
-    return hasMissing || hasMoney;
-  })
-  .sort((a,b)=> __isoFromDdMmYyyy(a).localeCompare(__isoFromDdMmYyyy(b)));
-
+  // nur relevante Tage (nicht 0/0) + sortiert
+  const dates = dailyDates
+    .slice()
+    .sort((a,b)=> __isoFromDdMmYyyy(a).localeCompare(__isoFromDdMmYyyy(b)));
 
   tbl.innerHTML = `
     <tr>
@@ -2927,6 +2919,8 @@ if(cmpActiveTab === "DAILY"){
 
   for(const d of dates){
     const x = daily[d];
+    if(!x) continue;
+
     const pkGs = __formatPkgCounts(x.pkGs);
     const pkAu = __formatPkgCounts(x.pkAu);
 
@@ -2945,15 +2939,31 @@ if(cmpActiveTab === "DAILY"){
       </tr>
     `;
   }
+
+  // Falls wirklich gar nichts fehlt:
+  if(dates.length === 0){
+    tbl.innerHTML += `
+      <tr class="cmp-daily">
+        <td colspan="7" class="helper">✅ Keine fehlenden Einträge (GS/AU) gefunden.</td>
+      </tr>
+    `;
+  }
+
   return;
 }
 
-// ===== Normal Tabs (wie bisher) =====
-const rows = (cmpActiveTab==="ALL")
-  ? (cmpRows || []).slice()
-  : (cmpRows || []).filter(r => r.status === cmpActiveTab);
 
-rows.sort(__cmpRowSort);
+// ===== Normal Tabs (wie bisher) =====
+const rows = (cmpActiveTab==="ALL") ? [...cmpRows] : cmpRows.filter(r=>r.status===cmpActiveTab);
+
+// nach Datum (und optional Uhrzeit) sortieren
+rows.sort((a,b)=>{
+  const da = __isoFromDdMmYyyy(a.date);
+  const db = __isoFromDdMmYyyy(b.date);
+  if(da !== db) return da.localeCompare(db);
+  return String(a.time||"").localeCompare(String(b.time||""));
+});
+
 
 
 tbl.innerHTML = `
@@ -2965,9 +2975,16 @@ tbl.innerHTML = `
 
 for(const r of rows){
   let cls = "";
-  if(r.status==="OK") cls="cmp-ok";
-  else if(r.status==="PRICE_DIFF") cls="cmp-warn";
-  else cls="cmp-bad";
+if(r.status==="OK") cls="cmp-ok";
+else if(r.status==="PRICE_DIFF"){
+  const a = Number(r.myPrice ?? 0);
+  const g = Number(r.gsPrice ?? 0);
+  if(a > g) cls = "cmp-price-up";       // App > GS => grün
+  else if(g > a) cls = "cmp-price-down"; // GS > App => gelb
+  else cls = "cmp-warn";
+}
+else cls="cmp-bad";
+
 
   const on = normalizeOrderNo(r.orderNo);
 
