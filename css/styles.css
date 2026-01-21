@@ -663,3 +663,17 @@ button:disabled{
   cursor: not-allowed;
   filter: grayscale(0.2);
 }
+.jump-btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+}
+
+.btn-blink{
+  animation: btnBlink .22s ease-in-out 6;
+  background: rgba(245,158,11,.25) !important;
+  border-color: rgba(245,158,11,.60) !important;
+}
+@keyframes btnBlink{
+  from{ filter:brightness(1); }
+  to{ filter:brightness(1.25); }
+}

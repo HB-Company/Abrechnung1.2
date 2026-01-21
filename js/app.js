@@ -1361,102 +1361,6 @@ function jumpToOrders(orderNo){    return jumpTo("AUF", orderNo, "GS"); }    // 
 function jumpToCompare(orderNo, fromTag){ return jumpTo("VG", orderNo, fromTag || ""); }
 // Springe zu Gutschrift anhand Bestellnr
 /* ---- Jump: Work -> Gutschrift ---- */
-function jumpTo(target, orderNo, fromTag){
-  __ensureDom && __ensureDom();
-
-  const on = normalizeOrderNo(orderNo);
-  if(!on) return;
-
-  // === Ziel: Gutschrift ===
-  if(target === "GS"){
-    __openContent("gsContent", "toggleGutschrift");
-
-    const hit = (Array.isArray(gsEntries) ? gsEntries : [])
-      .find(e => normalizeOrderNo(e.orderNo || e.beleg || e.fo) === on);
-
-    if(!hit || !hit.date){
-      alert("❗ In Gutschrift nicht gefunden: " + on);
-      return;
-    }
-
-    // ✅ IMMER Tages-Tab
-    gsActiveTab = hit.date;
-    renderGutschriftAll();
-
-    setTimeout(() => __scrollFlashAndMark("gsTable", on, fromTag), 90);
-    return;
-  }
-
-  // === Ziel: Arbeit/Aufträge ===
-  if(target === "AUF"){
-    __openContent("workContent", "toggleWork");
-
-    let foundTab = "";
-
-    for(const d of Object.keys(days || {})){
-      const arr = Array.isArray(days[d]) ? days[d] : [];
-      if(arr.some(o => normalizeOrderNo(o.orderNo) === on)){
-        foundTab = d; break;
-      }
-    }
-    if(!foundTab && Array.isArray(unknown) && unknown.some(o => normalizeOrderNo(o.orderNo) === on)){
-      foundTab = "UNK";
-    }
-
-    if(!foundTab){
-      alert("❗ In Aufträgen nicht gefunden: " + on);
-      return;
-    }
-
-    // ✅ IMMER Tages-Tab (oder UNK)
-    activeTab = foundTab;
-    renderAll();
-
-    setTimeout(() => __scrollFlashAndMark("orderTable", on, fromTag), 90);
-    return;
-  }
-
-  // === Ziel: Vergleich ===
-if(target === "VG"){
-  if(!isCompareReady()){
-    alert("❗ Vergleichsliste ist noch leer. Bitte erst Vergleich starten.");
-    return;
-  }
-
-  __openContent("cmpContent", "toggleCompare");
-
-  const on2 = normalizeOrderNo(orderNo);
-  if(!on2){
-    alert("❗ Ungültige Bestellnr");
-    return;
-  }
-
-  // Treffer suchen
-  const hit = (cmpRows || []).find(r => normalizeOrderNo(r.orderNo) === on2);
-
-  // ✅ Regel: von AUF -> Tab "Fehlt GS" | von GS -> Tab "Fehlt Aufträge"
-  if(fromTag === "AUF"){
-    cmpActiveTab = "MISSING_GS";
-  } else if(fromTag === "GS"){
-    cmpActiveTab = "MISSING_ORD";
-  } else {
-    cmpActiveTab = "ALL";
-  }
-
-  // Wenn Treffer existiert und sein Status-Tab passt besser, nimm den:
-  // (optional, aber praktisch)
-  if(hit && (hit.status === "MISSING_GS" || hit.status === "MISSING_ORD" || hit.status === "PRICE_DIFF" || hit.status === "OK" || hit.status === "NO_ID")){
-    // Wenn du IMMER nach Regel springen willst, kommentiere die nächste Zeile aus.
-    // cmpActiveTab = hit.status;
-  }
-
-  renderCompare();
-
-  setTimeout(() => __scrollFlashAndMark("cmpTable", on2, fromTag), 90);
-  return;
-}
-
-}
 
 
 function renderGsStatusFilters(){
@@ -1498,9 +1402,6 @@ function renderOrders(){
 	
 	  list = list.filter(o => workStatusFilter.has(__statusForFilter(o.matchStatus)));
 	// Status-Filter anwenden (matchStatus: ✅ ⚠️ ❌)
-if(gsStatusFilter    && gsStatusFilter   .size){
-  list = (list || []).filter(o => gsStatusFilter   .has(o.matchStatus || "❌"));
-}
 
 
   __uiOrdersRef = list;
@@ -1525,19 +1426,17 @@ const orderCell = `
            value="${escAttr(on)}"
            onchange="setWorkOrderNo(${i}, this.value)">
 
-    ${on ? `<button type="button" class="jump-btn" data-jump="GS" onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
+    ${on ? `<button type="button" class="jump-btn" data-jump="GS"
+            onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
 
- <button type="button" class="jump-btn" data-jump="VG"
-        onclick="jumpTo('VG','${escAttr(on)}','GS')"
-        ${vgEnabled ? "" : "disabled"}>
-  VG
-</button>
-
-
+    ${on ? `<button type="button" class="jump-btn" data-jump="VG"
+            ${vgEnabled ? "" : "disabled"}
+            onclick="${vgEnabled ? `jumpTo('VG','${on}','AUF')` : "return false;"}">VG</button>` : ""}
 
     ${statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`)}
   </div>
 `;
+
 
 
     html += `
@@ -2042,20 +1941,24 @@ filtered = filtered.filter(e => gsStatusFilter.has(__statusForFilter(e.matchStat
     const e = filtered[i] || {};
     const on = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
 
-    const vgEnabled = isCompareReady();
+const vgEnabled = isCompareReady();
 
 const orderCell =
   `<div class="ord-cell">` +
     `<input class="ord-input" inputmode="numeric" placeholder="Bestellnr" ` +
       `value="${escAttr(on)}" onchange="setGsOrderNo(${i}, this.value)">` +
 
-    (on ? `<button type="button" class="jump-btn" data-jump="AUF" onclick="jumpTo('AUF','${escAttr(on)}','GS')">AU</button>` : ``) +
+    (on ? `<button type="button" class="jump-btn" data-jump="AUF"
+            onclick="jumpTo('AUF','${on}','GS')">AU</button>` : ``) +
 
-    `<button type="button" class="jump-btn" data-jump="VG" onclick="jumpTo('VG','${escAttr(on)}','GS')" ${vgEnabled ? "" : "disabled"}>VG</button>` +
+    (on ? `<button type="button" class="jump-btn" data-jump="VG"
+            ${vgEnabled ? "" : "disabled"}
+            onclick="${vgEnabled ? `jumpTo('VG','${on}','GS')` : "return false;"}">VG</button>` : ``) +
 
     statusSelectHtml(e.matchStatus || "", `setGsStatus(${i}, this.value)`) +
   `</div>` +
   ((!on && e.beleg) ? `<div class="ord-sub">${escAttr(e.beleg)}</div>` : ``);
+
 
 
     html.push(
@@ -2409,7 +2312,16 @@ function isCompareReady(){
   return Array.isArray(cmpRows) && cmpRows.length > 0;
 }
 
-// im Ziel: Row scroll + Row flash + den "zurück"-Button (data-jump=FROM) gelb blinken lassen
+function __openContent(contentId, toggleFnName){
+  const el = document.getElementById(contentId);
+  if(!el) return;
+  if(el.style.display !== "block"){
+    const fn = window[toggleFnName];
+    if(typeof fn === "function") fn();
+    el.style.display = "block";
+  }
+}
+
 function __scrollFlashAndMark(tableId, orderNo, fromTag){
   const on = normalizeOrderNo(orderNo);
   if(!on) return;
@@ -2422,7 +2334,7 @@ function __scrollFlashAndMark(tableId, orderNo, fromTag){
 
   row.scrollIntoView({ behavior:"smooth", block:"center" });
   row.classList.add("row-flash");
-  setTimeout(() => row.classList.remove("row-flash"), 1200);
+  setTimeout(()=>row.classList.remove("row-flash"), 1200);
 
   if(fromTag){
     const btn = row.querySelector(`[data-jump="${fromTag}"]`);
@@ -2433,86 +2345,34 @@ function __scrollFlashAndMark(tableId, orderNo, fromTag){
   }
 }
 
-// Accordion sauber öffnen
-function __openContent(contentId, toggleFnName){
-  const el = document.getElementById(contentId);
-  if(!el) return false;
-
-  if(el.style.display !== "block"){
-    const acc = document.querySelector(`.accordion[onclick*="${toggleFnName}"]`);
-    if(acc) acc.setAttribute("aria-expanded","true");
-
-    const fn = window[toggleFnName];
-    if(typeof fn === "function") fn();
-
-    el.style.display = "block";
-  }
-  return true;
-}
-
-// Zwischen Tabellen springen
-function jumpTo(target, orderNo){
-  __ensureDom(); // wichtig, damit auf PC nichts "tot" wird
+// EINZIGE jumpTo-Funktion (mit VG)
+function jumpTo(target, orderNo, fromTag){
+  __ensureDom?.();
 
   const on = normalizeOrderNo(orderNo);
   if(!on) return;
 
-  // --- helper: accordions öffnen (ohne toggle-fehler) ---
-  const openContent = (contentId, toggleFnName) => {
-    const el = document.getElementById(contentId);
-    if(!el) return;
-    if(el.style.display !== "block"){
-      // aria expanded setzen wenn möglich
-      const acc = document.querySelector(`.accordion[onclick*=${toggleFnName}]`);
-      if(acc) acc.setAttribute("aria-expanded", "true");
-
-      // toggle aufrufen falls vorhanden
-      const fn = window[toggleFnName];
-      if(typeof fn === "function") fn();
-
-      el.style.display = "block";
-    }
-  };
-
-  // --- helper: scroll + flash ---
-  const scrollAndFlash = (tableId, on2) => {
-    const tbl = document.getElementById(tableId);
-    if(!tbl) return;
-    const row = tbl.querySelector(`tr[data-orderno="${on2}"]`);
-    if(!row) return;
-
-    row.scrollIntoView({ behavior: "smooth", block: "center" });
-    row.classList.add("row-flash");
-    setTimeout(() => row.classList.remove("row-flash"), 1200);
-  };
-
   if(target === "GS"){
-    // 1) Gutschrift öffnen
-    openContent("gsContent", "toggleGutschrift");
+    __openContent("gsContent", "toggleGutschrift");
 
-    // 2) passenden GS-Eintrag finden und Tab setzen
     const hit = (Array.isArray(gsEntries) ? gsEntries : [])
       .find(e => normalizeOrderNo(e.orderNo || e.beleg || e.fo) === on);
 
     if(hit && hit.date){
-      if(typeof setGsTab === "function") setGsTab(hit.date);
-      else { gsActiveTab = hit.date; renderGutschriftAll(); }
-    } else {
-      renderGutschriftAll();
+      gsActiveTab = hit.date;
+    }else{
+      gsActiveTab = "ALL";
     }
 
-    // 3) nach render scrollen
-    setTimeout(() => scrollAndFlash("gsTable", on), 80);
+    renderGutschriftAll();
+    setTimeout(()=>__scrollFlashAndMark("gsTable", on, fromTag), 90);
     return;
   }
 
   if(target === "AUF"){
-    // 1) Arbeit öffnen
-    openContent("workContent", "toggleWork");
+    __openContent("workContent", "toggleWork");
 
-    // 2) passenden Auftrag finden (days oder unknown) -> Tab setzen
     let foundTab = "";
-
     for(const d of Object.keys(days || {})){
       const arr = Array.isArray(days[d]) ? days[d] : [];
       if(arr.some(o => normalizeOrderNo(o.orderNo) === on)){
@@ -2527,11 +2387,35 @@ function jumpTo(target, orderNo){
     activeTab = foundTab ? foundTab : "ALL";
     renderAll();
 
-    // 3) nach render scrollen
-    setTimeout(() => scrollAndFlash("orderTable", on), 80);
+    setTimeout(()=>__scrollFlashAndMark("orderTable", on, fromTag), 90);
+    return;
+  }
+
+  if(target === "VG"){
+    if(!isCompareReady()) return;
+
+    __openContent("cmpContent", "toggleCompare");
+
+    // Vorschlag von dir:
+    // - von Arbeit -> Tab "Fehlt GS"
+    // - von Gutschrift -> Tab "Fehlt Aufträge"
+    cmpActiveTab = (fromTag === "GS") ? "MISSING_ORD" : "MISSING_GS";
+
+    renderCompare();
+    setTimeout(()=>__scrollFlashAndMark("cmpTable", on, fromTag), 90);
     return;
   }
 }
+
+
+
+
+// Accordion sauber öffnen
+
+
+
+// Zwischen Tabellen springen
+
 
 
 function resetWork(){
@@ -2889,27 +2773,28 @@ function renderCompare(){
     else if(r.status==="PRICE_DIFF") cls="cmp-warn";
     else cls="cmp-bad";
 
-    tbl.innerHTML += `
-     <tr class="${cls}" data-orderno="${escAttr(r.orderNo||"")}">
-        <td>${r.status}</td>
-        <td>
-  <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
-    <b>${r.orderNo||""}</b>
-    <button class="chip" data-jump="GS" onclick="jumpTo('GS','${r.orderNo||""}','VG')">GS</button>
-<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${r.orderNo||""}','VG')">AUF</button>
+    const on = normalizeOrderNo(r.orderNo);
 
-  </div>
-</td>
+tbl.innerHTML += `
+  <tr class="${cls}" data-orderno="${escAttr(on)}">
+    <td>${r.status}</td>
+    <td>
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
+        <b>${on || ""}</b>
+        <button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>
+        <button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>
+      </div>
+    </td>
+    <td>${r.date||""}</td>
+    <td>${r.time||""}</td>
+    <td>${r.artikel||""}</td>
+    <td>${r.myPackage||""}</td>
+    <td>${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
+    <td>${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
+    <td>${r.note||""}</td>
+  </tr>
+`;
 
-        <td>${r.date||""}</td>
-        <td>${r.time||""}</td>
-        <td>${r.artikel||""}</td>
-        <td>${r.myPackage||""}</td>
-        <td>${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
-        <td>${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
-        <td>${r.note||""}</td>
-      </tr>
-    `;
   }
 }
 
