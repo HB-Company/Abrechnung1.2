@@ -2813,9 +2813,19 @@ function renderCompare(){
 
   for(const r of rows){
     let cls = "";
-    if(r.status==="OK") cls="cmp-ok";
-    else if(r.status==="PRICE_DIFF") cls="cmp-warn";
-    else cls="cmp-bad";
+if(r.status === "OK"){
+  cls = "cmp-ok";
+}else if(r.status === "PRICE_DIFF"){
+  // Basis-Warn-Look + Richtung einfärben
+  const my = Number(r.myPrice ?? 0);
+  const gs = Number(r.gsPrice ?? 0);
+  if(my > gs) cls = "cmp-warn cmp-price-up";       // App > GS -> grün
+  else if(gs > my) cls = "cmp-warn cmp-price-down";// GS > App -> gelb
+  else cls = "cmp-warn";                           // gleich (sollte selten sein)
+}else{
+  cls = "cmp-bad";
+}
+
 
     const on = normalizeOrderNo(r.orderNo);
 

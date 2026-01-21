@@ -1037,7 +1037,7 @@ button:disabled,
   padding-left: 12px;
 }
 
-/* Work Controls sticky */
+/* Work Controls static */
 .work-controls{
   position: static;
   bottom: 12px;
@@ -1418,3 +1418,6 @@ th{
   margin-top: 10px;
 }
 
+/* VG Preis-Details */
+.cmp-price-up   { background: rgba(34,197,94,.14) !important; }  /* App > GS  -> grün */
+.cmp-price-down { background: rgba(245,158,11,.16) !important; } /* GS  > App -> gelb */
