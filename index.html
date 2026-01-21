@@ -32,7 +32,8 @@
 </header>
 
 <!-- ================== PAKETE ================== -->
-<div class="section">
+<!-- Pakete -->
+<div class="section section-pkg">
   <div class="accordion" onclick="togglePkg()" aria-expanded="false">📦 Pakete verwalten</div>
   <div id="pkgContent" class="accordion-content">
 
@@ -76,10 +77,25 @@
 </div>
 
 <!-- ================== ARBEIT (1–3) ================== -->
-<div class="section">
+<!-- Arbeit -->
+<div class="section section-work">
   <div class="accordion" onclick="toggleWork()" aria-expanded="false">🧾 Arbeit (1–3)</div>
 
   <div id="workContent" class="accordion-content" style="display:none">
+  <!-- Arbeit Toolbar (sticky) -->
+<div class="work-toolbar">
+  <button class="danger" onclick="resetWork()">♻ Reset</button>
+
+  <button class="ghost" onclick="saveWork()">⬇💾 Save</button>
+
+  <input type="file" id="importWorkFile" accept=".json" style="display:none"
+         onchange="loadWork(this.files)">
+
+  <button class="ghost" onclick="document.getElementById('importWorkFile').click()">
+    ⬆📁 Load
+  </button>
+</div>
+
 
     <!-- 1️⃣ Screenshots -->
     <div class="inner-block">
@@ -172,25 +188,13 @@
 
   </div>
 </div>
-
-
-
-
-<!-- ================== CONTROLS ================== -->
-<!-- ===== Arbeit Controls ===== -->
-<div class="section" style="margin-top:10px;">
-  <button class="danger" onclick="resetWork()">♻ Reset </button>
-
-  <button class="ghost" onclick="saveWork()">⬇💾 Save </button>
-
-  <input type="file" id="importWorkFile" accept=".json" style="display:none"
-         onchange="loadWork(this.files)">
-  <button class="ghost" onclick="document.getElementById('importWorkFile').click()">⬆📁 Load </button>
 </div>
 
 
+
 <!-- ================== GUTSCHRIFT ================== -->
-<div class="section">
+<!-- Gutschrift -->
+<div class="section section-gs">
   <div class="accordion" onclick="toggleGutschrift()" aria-expanded="false">
     📄 Gutschrift (PDF / XLSX)
   </div>
@@ -225,7 +229,8 @@
 
 
 <!-- ================== VERGLEICHSLISTE ================== -->
-<div class="section">
+<!-- Vergleich -->
+<div class="section section-cmp">
   <div class="accordion" onclick="toggleCompare()" aria-expanded="false">🔎 Vergleichsliste</div>
 
   <div id="cmpContent" class="accordion-content" style="display:none">

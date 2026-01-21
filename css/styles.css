@@ -677,3 +677,109 @@ button:disabled{
   from{ filter:brightness(1); }
   to{ filter:brightness(1.25); }
 }
+/* ===========================
+   Section Color Coding (Glass)
+   =========================== */
+
+.section{
+  position: relative;
+  /* defaults, falls keine section-klasse gesetzt */
+  --section-accent: rgba(148,163,184,.9);
+  --section-tint: rgba(148,163,184,.10);
+}
+
+/* Farbige "Glass"-Tönung + Akzentstreifen */
+.section::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius: var(--radius);
+  background: linear-gradient(
+    180deg,
+    var(--section-tint),
+    rgba(255,255,255,0) 65%
+  );
+  pointer-events:none;
+  z-index: 0;
+}
+
+.section::after{
+  content:"";
+  position:absolute;
+  left:10px;
+  top:10px;
+  bottom:10px;
+  width:6px;
+  border-radius: 999px;
+  background: var(--section-accent);
+  opacity:.65;
+  filter: blur(.0px);
+  pointer-events:none;
+  z-index: 0;
+}
+
+/* Inhalt über die Overlays legen */
+.section > *{
+  position: relative;
+  z-index: 1;
+}
+
+/* ================
+   Sektion-Farben
+   ================ */
+.section-pkg{
+  --section-accent: rgba(96,165,250,.95);     /* blau */
+  --section-tint: rgba(96,165,250,.14);
+}
+
+.section-work{
+  --section-accent: rgba(34,197,94,.95);      /* grün */
+  --section-tint: rgba(34,197,94,.14);
+}
+
+.section-gs{
+  --section-accent: rgba(245,158,11,.95);     /* orange */
+  --section-tint: rgba(245,158,11,.14);
+}
+
+.section-cmp{
+  --section-accent: rgba(236,72,153,.95);     /* pink */
+  --section-tint: rgba(236,72,153,.14);
+}
+
+/* ===========================
+   Arbeit Toolbar (sticky)
+   =========================== */
+.work-toolbar{
+  position: sticky;
+  top: 10px;
+  z-index: 30;
+
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  align-items:center;
+
+  padding:10px;
+  margin: 0 0 12px;
+
+  background: rgba(255,255,255,.10);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* damit die Work-Tabs nicht unter der Toolbar kleben */
+.section-work #tabs.tabs{
+  top: 72px;
+}
+
+/* Disabled Button schöner */
+button:disabled,
+.jump-btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  filter: saturate(.4);
+}
