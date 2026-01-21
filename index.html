@@ -62,14 +62,15 @@
       </div>
     </div>
 
-    <button class="primary" onclick="addPackage()">➕ Paket</button>
-    <button class="ghost" onclick="exportPackages()">⬇ Pakete exportieren</button>
+    <div class="work-controls" role="group" aria-label="Pakete Aktionen">
+  <button class="primary" onclick="addPackage()">➕ Paket</button>
+  <button class="ghost" onclick="exportPackages()">⬇ Pakete exportieren</button>
 
-    <input type="file" id="importFile" accept=".json" style="display:none"
-           onchange="importPackages(this.files)">
-    <button class="ghost" onclick="document.getElementById('importFile').click()">
-      ⬆ Pakete importieren
-    </button>
+  <input type="file" id="importFile" accept=".json" style="display:none"
+         onchange="importPackages(this.files)">
+  <button class="ghost" onclick="document.getElementById('importFile').click()">⬆ Pakete importieren</button>
+</div>
+
 
     <div class="table-wrap"><table id="pkgTable"></table></div>
   </div>

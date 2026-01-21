@@ -1357,4 +1357,64 @@ th{
 @media (max-width: 520px){
   :root{ --work-sticky-offset: 92px; }
 }
+/* =================== PAKETE UI Polish (wie Arbeit-Controls) =================== */
+
+/* Buttons-Bar wie in Arbeit */
+.section-pkg .work-controls{
+  margin: 8px 0 12px !important;
+  background: rgba(59,130,246,.08) !important;   /* leicht blau */
+  border: 1px solid var(--stroke) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: var(--shadow-soft) !important;
+  padding: 10px !important;
+}
+.section-pkg .work-controls button{
+  flex: 1 1 140px;
+}
+
+/* Pakete-Felder einheitlich */
+.section-pkg #pkgContent .row{
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.section-pkg #pkgContent label{
+  font-weight: 800;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.section-pkg #pkgContent input[type="text"],
+.section-pkg #pkgContent input[type="number"]{
+  min-height: 46px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(255,255,255,.12);
+  color: var(--text);
+  box-shadow: none;
+}
+
+/* Symbol + Farbe schöner (iPhone-friendly) */
+.section-pkg #symbolBtn{
+  min-height: 46px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(255,255,255,.12);
+  box-shadow: none;
+  font-size: 20px;
+}
+
+.section-pkg #pc{
+  min-height: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(255,255,255,.12);
+  padding: 6px;
+}
+
+/* Tabelle etwas “luftiger” im Pakete Block */
+.section-pkg .table-wrap{
+  margin-top: 10px;
+}
 
