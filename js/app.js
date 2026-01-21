@@ -2756,6 +2756,26 @@ function __isoFromDdMmYyyy(d){
   const m = String(d||"").match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : "0000-00-00";
 }
+function __timeToMin(t){
+  const m = String(t||"").match(/(\d{2}):(\d{2})/);
+  if(!m) return 9999;
+  return parseInt(m[1],10)*60 + parseInt(m[2],10);
+}
+
+function __cmpRowSort(a,b){
+  const da = __isoFromDdMmYyyy(a?.date);
+  const db = __isoFromDdMmYyyy(b?.date);
+  if(da !== db) return da.localeCompare(db);
+
+  const ta = __timeToMin(a?.time);
+  const tb = __timeToMin(b?.time);
+  if(ta !== tb) return ta - tb;
+
+  const oa = String(a?.orderNo || "");
+  const ob = String(b?.orderNo || "");
+  return oa.localeCompare(ob);
+}
+
 
 function __moneyDE(n){
   const x = Number(n || 0);
@@ -2877,7 +2897,21 @@ const dailyCount = Object.keys(daily).length;
   // Filter
   // ===== Special Tab: DAILY (Fehlt GS vs Fehlt AU) =====
 if(cmpActiveTab === "DAILY"){
-  const dates = Object.keys(daily).sort((a,b)=> __isoFromDdMmYyyy(a).localeCompare(__isoFromDdMmYyyy(b)));
+  const dates = Object.keys(daily)
+  .filter(d => {
+    const x = daily[d];
+    if(!x) return false;
+
+    // ✅ Nur Tage zeigen wo wirklich was fehlt
+    const hasMissing = (Number(x.cntGs||0) > 0) || (Number(x.cntAu||0) > 0);
+
+    // Optional extra-sicher: Summe muss auch >0 sein, falls cnt mal kaputt wäre
+    const hasMoney = (Math.abs(Number(x.sumGs||0)) > 0.0001) || (Math.abs(Number(x.sumAu||0)) > 0.0001);
+
+    return hasMissing || hasMoney;
+  })
+  .sort((a,b)=> __isoFromDdMmYyyy(a).localeCompare(__isoFromDdMmYyyy(b)));
+
 
   tbl.innerHTML = `
     <tr>
@@ -2915,7 +2949,12 @@ if(cmpActiveTab === "DAILY"){
 }
 
 // ===== Normal Tabs (wie bisher) =====
-const rows = (cmpActiveTab==="ALL") ? cmpRows : cmpRows.filter(r=>r.status===cmpActiveTab);
+const rows = (cmpActiveTab==="ALL")
+  ? (cmpRows || []).slice()
+  : (cmpRows || []).filter(r => r.status === cmpActiveTab);
+
+rows.sort(__cmpRowSort);
+
 
 tbl.innerHTML = `
   <tr>
