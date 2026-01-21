@@ -1430,8 +1430,9 @@ const orderCell = `
             onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
 
     ${on ? `<button type="button" class="jump-btn" data-jump="VG"
-            ${vgEnabled ? "" : "disabled"}
-            onclick="${vgEnabled ? `jumpTo('VG','${on}','AUF')` : "return false;"}">VG</button>` : ""}
+        ${vgEnabled ? "" : "disabled"}
+        onclick="${vgEnabled ? `jumpTo('VG','${on}','AUF','${(o.matchStatus||"").trim()}')` : "return false;"}">VG</button>` : ""}
+
 
     ${statusSelectHtml(o.matchStatus || "", `setWorkStatus(${i}, this.value)`)}
   </div>
@@ -1952,8 +1953,8 @@ const orderCell =
             onclick="jumpTo('AUF','${on}','GS')">AU</button>` : ``) +
 
     (on ? `<button type="button" class="jump-btn" data-jump="VG"
-            ${vgEnabled ? "" : "disabled"}
-            onclick="${vgEnabled ? `jumpTo('VG','${on}','GS')` : "return false;"}">VG</button>` : ``) +
+        ${vgEnabled ? "" : "disabled"}
+        onclick="${vgEnabled ? `jumpTo('VG','${on}','GS','${(e.matchStatus||"").trim()}')` : "return false;"}">VG</button>` : ``) +
 
     statusSelectHtml(e.matchStatus || "", `setGsStatus(${i}, this.value)`) +
   `</div>` +
@@ -2346,7 +2347,8 @@ function __scrollFlashAndMark(tableId, orderNo, fromTag){
 }
 
 // EINZIGE jumpTo-Funktion (mit VG)
-function jumpTo(target, orderNo, fromTag){
+function jumpTo(target, orderNo, fromTag, statusHint){
+
   __ensureDom?.();
 
   const on = normalizeOrderNo(orderNo);
@@ -2392,19 +2394,42 @@ function jumpTo(target, orderNo, fromTag){
   }
 
   if(target === "VG"){
-    if(!isCompareReady()) return;
+  if(!isCompareReady()) return;
 
-    __openContent("cmpContent", "toggleCompare");
+  __openContent("cmpContent", "toggleCompare");
 
-    // Vorschlag von dir:
-    // - von Arbeit -> Tab "Fehlt GS"
-    // - von Gutschrift -> Tab "Fehlt Aufträge"
+  const s = String(statusHint || "").trim();
+
+  // ✅ Regel:
+  // - ⚠️ => immer PRICE_DIFF
+  // - sonst: von AUF => MISSING_GS, von GS => MISSING_ORD
+  if(s === "⚠️"){
+    cmpActiveTab = "PRICE_DIFF";
+  }else{
     cmpActiveTab = (fromTag === "GS") ? "MISSING_ORD" : "MISSING_GS";
-
-    renderCompare();
-    setTimeout(()=>__scrollFlashAndMark("cmpTable", on, fromTag), 90);
-    return;
   }
+
+  renderCompare();
+
+  // nach render: zur Zeile scrollen + blinken
+  setTimeout(() => {
+    const tbl = document.getElementById("cmpTable");
+    const row = tbl?.querySelector(`tr[data-orderno="${on}"]`);
+
+    // Falls Zeile im Tab nicht sichtbar: fallback ALL
+    if(!row){
+      cmpActiveTab = "ALL";
+      renderCompare();
+      setTimeout(() => __scrollFlashAndMark("cmpTable", on, fromTag), 60);
+      return;
+    }
+
+    __scrollFlashAndMark("cmpTable", on, fromTag);
+  }, 90);
+
+  return;
+}
+
 }
 
 
