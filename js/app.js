@@ -177,8 +177,13 @@ function exportCurrentTab(){
     data.days = { [activeTab]: (days && days[activeTab]) ? days[activeTab] : [] };
   }
 
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
+  let filename = "tabellen.json";
+if(activeTab === "ALL") filename = "alle-tabellen.json";
+else if(activeTab === "UNK") filename = "tab-UNK.json";
+else filename = `tab-${activeTab.replace(/\./g,"-")}.json`;
+
+__downloadJson(filename, data);
+
   const url = URL.createObjectURL(blob);
 
   const a = document.createElement("a");
@@ -203,8 +208,7 @@ function importCurrentTab(files){
   const reader = new FileReader();
   reader.onload = e => {
     try{
-      const data = JSON.parse(e.target.result);
-
+      const data = JSON.parse(__stripBom(e.target.result));
       if(Array.isArray(data)){
         alert("❗ Das ist eine Pakete-Datei. Bitte im Pakete-Importer laden (⬆ Pakete importieren).");
         return;
@@ -347,15 +351,9 @@ function openEmojiPicker(){
 
 /* ---------- Export / Import Pakete ---------- */
 function exportPackages(){
-  const data = JSON.stringify(packages,null,2);
-  const blob = new Blob([data],{type:"application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href=url;
-  a.download="pakete.json";
-  a.click();
-  URL.revokeObjectURL(url);
+  __downloadJson("pakete.json", packages);
 }
+
 
 function importPackages(files){
   if(!files || files.length === 0){
@@ -368,7 +366,7 @@ function importPackages(files){
 
   reader.onload = function(e){
     try{
-      const imported = JSON.parse(e.target.result);
+      const imported = JSON.parse(__stripBom(e.target.result));
       if(!Array.isArray(imported)){
         throw new Error("Ungültige Datei (Pakete müssen ein Array sein)");
       }
@@ -1199,6 +1197,38 @@ function normalizeOrderNo(x){
 function escAttr(s){
   return String(s || "").replace(/"/g, "&quot;");
 }
+// --- UTF-8 Export/Import Fix (iPhone/Windows Emoji sicher) ---
+function __stripBom(s){
+  return (typeof s === "string") ? s.replace(/^\uFEFF/, "") : s;
+}
+
+function __downloadJson(filename, dataObj){
+  const json = JSON.stringify(dataObj, null, 2);
+
+  // BOM vorne dran -> Windows/iOS erkennen UTF-8 korrekt (Emojis bleiben korrekt)
+  const content = "\uFEFF" + json;
+
+  let blob;
+  try{
+    if(window.TextEncoder){
+      blob = new Blob([new TextEncoder().encode(content)], { type: "application/json;charset=utf-8" });
+    }else{
+      blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    }
+  }catch(e){
+    blob = new Blob([content], { type: "application/json;charset=utf-8" });
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 function statusSelectHtml(current, onChangeJs){
   const val = current || "";
   return `
@@ -2481,7 +2511,6 @@ function resetWork(){
 }
 
 function saveWork(){
-  // Speichert IMMER komplett Arbeit (Days + Unknown), unabhängig vom aktiven Tab
   const data = {
     type: "work_tables",
     version: "work-1.0",
@@ -2491,18 +2520,9 @@ function saveWork(){
     unknown: unknown || []
   };
 
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "arbeit-tabellen.json";
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  __downloadJson("arbeit-tabellen.json", data);
 }
+
 
 function loadWork(files){
   if(!files || !files.length){
@@ -2513,8 +2533,7 @@ function loadWork(files){
   const reader = new FileReader();
   reader.onload = (e) => {
     try{
-      const data = JSON.parse(e.target.result);
-
+      const data = JSON.parse(__stripBom(e.target.result));
       if(!data || typeof data !== "object"){
         throw new Error("Ungültige Datei");
       }
