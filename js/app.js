@@ -2290,6 +2290,39 @@ function parseGutschriftEntriesFromText(text){
 // Vergleichs UI Logik
 let cmpActiveTab = "ALL";
 let cmpRows = [];
+// ✅ Merker für DAILY-Checkboxen (Fehlt GS vs AU)
+let cmpDailyChecked = new Set();
+
+try{
+  const saved = JSON.parse(localStorage.getItem("cmpDailyChecked") || "[]");
+  if(Array.isArray(saved)) cmpDailyChecked = new Set(saved.map(String));
+}catch(e){
+  cmpDailyChecked = new Set();
+}
+
+function __saveCmpDailyChecked(){
+  try{
+    localStorage.setItem("cmpDailyChecked", JSON.stringify(Array.from(cmpDailyChecked)));
+  }catch(e){}
+}
+
+function toggleCmpDailyCheck(date, checked){
+  const d = String(date || "").trim();
+  if(!d) return;
+
+  if(checked) cmpDailyChecked.add(d);
+  else cmpDailyChecked.delete(d);
+
+  __saveCmpDailyChecked();
+}
+
+// optional: wenn du später einen "Reset" Button willst
+function clearCmpDailyChecks(){
+  cmpDailyChecked.clear();
+  __saveCmpDailyChecked();
+  if(cmpActiveTab === "DAILY") renderCompare();
+}
+
 
 function toggleCompare(){
   const el = document.getElementById("cmpContent");
@@ -2579,6 +2612,7 @@ function __yieldUI(){
 }
 
 async function runComparison(){
+	clearCmpDailyChecks();
   __ensureDom();
   __setProg(cmpBar, cmpProgressText, 0.03, "Vergleich: starte…");
   await __yieldUI();
@@ -2957,7 +2991,12 @@ if(cmpActiveTab === "DAILY"){
     tbl.innerHTML += `
       <tr class="cmp-daily" data-date="${escAttr(d)}">
         <td style="text-align:center" data-label="✓">
-          <input type="checkbox" class="cmp-daily-check" aria-label="Tag markieren ${escAttr(d)}">
+          <input type="checkbox"
+  class="cmp-daily-check"
+  ${cmpDailyChecked.has(d) ? "checked" : ""}
+  onchange="toggleCmpDailyCheck('${d}', this.checked)"
+  aria-label="Tag markieren ${escAttr(d)}">
+
         </td>
 
         <td data-label="Datum"><b>${d}</b></td>
