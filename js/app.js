@@ -2928,13 +2928,13 @@ const dailyCount = dailyDates.length;
 // ===== Special Tab: DAILY (Fehlt GS vs Fehlt AU) =====
 if(cmpActiveTab === "DAILY"){
   // nur relevante Tage (nicht 0/0) + sortiert
-  const dates = (dailyDates || [])
+  const dates = dailyDates
     .slice()
     .sort((a,b)=> __isoFromDdMmYyyy(a).localeCompare(__isoFromDdMmYyyy(b)));
 
   tbl.innerHTML = `
     <tr>
-      <th style="width:44px;text-align:center">✓</th>
+      <th style="width:44px"></th>
       <th>Datum</th>
       <th class="gs-col">Summe Fehlt in GS Preis</th>
       <th class="au-col">Summe Fehlt in AU Preis</th>
@@ -2949,8 +2949,8 @@ if(cmpActiveTab === "DAILY"){
     const x = daily[d];
     if(!x) continue;
 
-    const pkGs = __formatPkgCounts(x.pkGs);
-    const pkAu = __formatPkgCounts(x.pkAu);
+    const pkGs  = __formatPkgCounts(x.pkGs);
+    const pkAu  = __formatPkgCounts(x.pkAu);
     const ordGs = __formatOrderNos(x.ordGs);
     const ordAu = __formatOrderNos(x.ordAu);
 
@@ -2994,6 +2994,7 @@ if(cmpActiveTab === "DAILY"){
 
 
 
+
 // ===== Normal Tabs (wie bisher) =====
 const rows = (cmpActiveTab==="ALL") ? [...cmpRows] : cmpRows.filter(r=>r.status===cmpActiveTab);
 
@@ -3004,6 +3005,20 @@ rows.sort((a,b)=>{
   if(da !== db) return da.localeCompare(db);
   return String(a.time||"").localeCompare(String(b.time||""));
 });
+// ===== Normal Tabs: Tabelle IMMER neu aufbauen =====
+tbl.innerHTML = `
+  <tr>
+    <th>Status</th>
+    <th>Bestellnr</th>
+    <th>Datum</th>
+    <th>Uhrzeit</th>
+    <th>Auftrag</th>
+    <th>Paket</th>
+    <th>Preis (App)</th>
+    <th>Preis (GS)</th>
+    <th>Hinweis</th>
+  </tr>
+`;
 
 
 for(const r of rows){
@@ -3022,24 +3037,27 @@ else cls="cmp-bad";
   const on = normalizeOrderNo(r.orderNo);
 
   tbl.innerHTML += `
-    <tr class="${cls}" data-orderno="${escAttr(on)}">
-      <td>${r.status}</td>
-      <td>
-        <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
-          <b>${on || ""}</b>
-          <button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>
-          <button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>
-        </div>
-      </td>
-      <td>${r.date||""}</td>
-      <td>${r.time||""}</td>
-      <td>${r.artikel||""}</td>
-      <td>${r.myPackage||""}</td>
-      <td>${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
-      <td>${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
-      <td>${r.note||""}</td>
-    </tr>
-  `;
+  <tr class="${cls}" data-orderno="${escAttr(on)}">
+    <td data-label="Status">${r.status}</td>
+
+    <td data-label="Bestellnr">
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+        <b>${on || ""}</b>
+        ${on ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : ``}
+        ${on ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : ``}
+      </div>
+    </td>
+
+    <td data-label="Datum">${r.date||""}</td>
+    <td data-label="Uhrzeit">${r.time||""}</td>
+    <td data-label="Auftrag">${r.artikel||""}</td>
+    <td data-label="Paket">${r.myPackage||""}</td>
+    <td data-label="Preis (App)">${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
+    <td data-label="Preis (GS)">${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
+    <td data-label="Hinweis">${r.note||""}</td>
+  </tr>
+`;
+
 }
 
 }
