@@ -3074,28 +3074,32 @@ else cls="cmp-bad";
 
 
   const on = normalizeOrderNo(r.orderNo);
+const showGSBtn  = (cmpActiveTab !== "MISSING_GS");   // in "Fehlt GS" => GS ausblenden
+const showAUFBtn = (cmpActiveTab !== "MISSING_ORD");  // in "Fehlt AU" => AUF ausblenden
 
-  tbl.innerHTML += `
+const gsBtn  = (on && showGSBtn)  ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : "";
+const aufBtn = (on && showAUFBtn) ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : "";
+
+tbl.innerHTML += `
   <tr class="${cls}" data-orderno="${escAttr(on)}">
-    <td data-label="Status">${r.status}</td>
-
-    <td data-label="Bestellnr">
-      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+    <td>${r.status}</td>
+    <td>
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
         <b>${on || ""}</b>
-        ${on ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : ``}
-        ${on ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : ``}
+        ${gsBtn}
+        ${aufBtn}
       </div>
     </td>
-
-    <td data-label="Datum">${r.date||""}</td>
-    <td data-label="Uhrzeit">${r.time||""}</td>
-    <td data-label="Auftrag">${r.artikel||""}</td>
-    <td data-label="Paket">${r.myPackage||""}</td>
-    <td data-label="Preis (App)">${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
-    <td data-label="Preis (GS)">${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
-    <td data-label="Hinweis">${r.note||""}</td>
+    <td>${r.date||""}</td>
+    <td>${r.time||""}</td>
+    <td>${r.artikel||""}</td>
+    <td>${r.myPackage||""}</td>
+    <td>${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
+    <td>${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
+    <td>${r.note||""}</td>
   </tr>
 `;
+
 
 }
 
