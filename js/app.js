@@ -2928,23 +2928,22 @@ const dailyCount = dailyDates.length;
 // ===== Special Tab: DAILY (Fehlt GS vs Fehlt AU) =====
 if(cmpActiveTab === "DAILY"){
   // nur relevante Tage (nicht 0/0) + sortiert
-  const dates = dailyDates
+  const dates = (dailyDates || [])
     .slice()
     .sort((a,b)=> __isoFromDdMmYyyy(a).localeCompare(__isoFromDdMmYyyy(b)));
 
-tbl.innerHTML = `
-  <tr>
-    <th style="width:44px"></th>
-    <th>Datum</th>
-    <th class="gs-col">Summe Fehlt in GS Preis</th>
-    <th class="au-col">Summe Fehlt in AU Preis</th>
-    <th class="gs-col">Aufträge fehlen in GS (Bestellnr)</th>
-    <th class="au-col">Aufträge fehlen in AU (Bestellnr)</th>
-    <th class="gs-col">Pakete Fehlt GS</th>
-    <th class="au-col">Pakete Fehlt AU</th>
-  </tr>
-`;
-
+  tbl.innerHTML = `
+    <tr>
+      <th style="width:44px;text-align:center">✓</th>
+      <th>Datum</th>
+      <th class="gs-col">Summe Fehlt in GS Preis</th>
+      <th class="au-col">Summe Fehlt in AU Preis</th>
+      <th class="gs-col">Aufträge fehlen in GS (Bestellnr)</th>
+      <th class="au-col">Aufträge fehlen in AU (Bestellnr)</th>
+      <th class="gs-col">Pakete Fehlt GS</th>
+      <th class="au-col">Pakete Fehlt AU</th>
+    </tr>
+  `;
 
   for(const d of dates){
     const x = daily[d];
@@ -2952,62 +2951,47 @@ tbl.innerHTML = `
 
     const pkGs = __formatPkgCounts(x.pkGs);
     const pkAu = __formatPkgCounts(x.pkAu);
-	const ordGs = __formatOrderNos(x.ordGs);
-const ordAu = __formatOrderNos(x.ordAu);
-tbl.innerHTML += `
-  <tr class="cmp-daily" data-date="${escAttr(d)}">
-    <td style="text-align:center" data-label="✓">
-      <input type="checkbox" class="cmp-daily-check" aria-label="Tag markieren ${escAttr(d)}">
-    </td>
-
-    <td data-label="Datum"><b>${d}</b></td>
-
-    <td class="gs-col" data-label="Summe GS"><b>${__moneyDE(x.sumGs)}</b></td>
-    <td class="au-col" data-label="Summe AU"><b>${__moneyDE(x.sumAu)}</b></td>
-
-    <td class="gs-col" data-label="Fehlt GS">
-      <b>${x.cntGs}</b> <span class="muted">fehlt</span>
-      <div class="cmp-ordernos">${ordGs}</div>
-    </td>
-
-    <td class="au-col" data-label="Fehlt AU">
-      <b>${x.cntAu}</b> <span class="muted">fehlt</span>
-      <div class="cmp-ordernos">${ordAu}</div>
-    </td>
-
-    <td class="gs-col pkglist" data-label="Pakete GS">${pkGs}</td>
-    <td class="au-col pkglist" data-label="Pakete AU">${pkAu}</td>
-  </tr>
-`;
-
+    const ordGs = __formatOrderNos(x.ordGs);
+    const ordAu = __formatOrderNos(x.ordAu);
 
     tbl.innerHTML += `
       <tr class="cmp-daily" data-date="${escAttr(d)}">
-        <td><b>${d}</b></td>
+        <td style="text-align:center" data-label="✓">
+          <input type="checkbox" class="cmp-daily-check" aria-label="Tag markieren ${escAttr(d)}">
+        </td>
 
-        <td class="gs-col"><b>${__moneyDE(x.sumGs)}</b></td>
-        <td class="au-col"><b>${__moneyDE(x.sumAu)}</b></td>
+        <td data-label="Datum"><b>${d}</b></td>
 
-        <td class="gs-col"><b>${x.cntGs}</b> <span class="muted">fehlt in GS</span></td>
-        <td class="au-col"><b>${x.cntAu}</b> <span class="muted">fehlt in AU</span></td>
+        <td class="gs-col" data-label="Summe GS"><b>${__moneyDE(x.sumGs)}</b></td>
+        <td class="au-col" data-label="Summe AU"><b>${__moneyDE(x.sumAu)}</b></td>
 
-        <td class="gs-col pkglist">${pkGs}</td>
-        <td class="au-col pkglist">${pkAu}</td>
+        <td class="gs-col" data-label="Fehlt GS">
+          <b>${x.cntGs}</b> <span class="muted">fehlt</span>
+          <div class="cmp-ordernos">${ordGs}</div>
+        </td>
+
+        <td class="au-col" data-label="Fehlt AU">
+          <b>${x.cntAu}</b> <span class="muted">fehlt</span>
+          <div class="cmp-ordernos">${ordAu}</div>
+        </td>
+
+        <td class="gs-col pkglist" data-label="Pakete GS">${pkGs}</td>
+        <td class="au-col pkglist" data-label="Pakete AU">${pkAu}</td>
       </tr>
     `;
   }
 
-  // Falls wirklich gar nichts fehlt:
   if(dates.length === 0){
     tbl.innerHTML += `
       <tr class="cmp-daily">
-        <td colspan="7" class="helper">✅ Keine fehlenden Einträge (GS/AU) gefunden.</td>
+        <td colspan="8" class="helper">✅ Keine fehlenden Einträge (GS/AU) gefunden.</td>
       </tr>
     `;
   }
 
   return;
 }
+
 
 
 // ===== Normal Tabs (wie bisher) =====
@@ -3021,14 +3005,6 @@ rows.sort((a,b)=>{
   return String(a.time||"").localeCompare(String(b.time||""));
 });
 
-
-
-tbl.innerHTML = `
-  <tr>
-    <th>Status</th><th>Bestellnr</th><th>Datum</th><th>Uhrzeit</th>
-    <th>Auftrag</th><th>Paket</th><th>Preis (App)</th><th>Preis (GS)</th><th>Hinweis</th>
-  </tr>
-`;
 
 for(const r of rows){
   let cls = "";
