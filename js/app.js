@@ -2806,6 +2806,20 @@ function __pkgNameFromGsPrice(gsPrice){
   }
   return ""; // nichts passendes
 }
+function __formatOrderNos(list, limit=14){
+  const arr = (list || []).map(x => normalizeOrderNo(x)).filter(Boolean);
+
+  // Duplikate raus
+  const uniq = Array.from(new Set(arr));
+
+  if(!uniq.length) return "—";
+
+  // kompakt halten
+  const shown = uniq.slice(0, limit);
+  const rest = uniq.length - shown.length;
+
+  return shown.join(" • ") + (rest > 0 ? `  +${rest}` : "");
+}
 
 function __formatPkgCounts(map){
   // map: name -> count
@@ -2830,13 +2844,23 @@ for(const r of (cmpRows||[])){
   const date = String(r.date||"").trim();
   if(!date) continue;
 
-  if(!daily[date]){
-    daily[date] = { sumGs:0, sumAu:0, cntGs:0, cntAu:0, pkGs:{}, pkAu:{} };
-  }
+if(!daily[date]){
+  daily[date] = {
+    sumGs:0, sumAu:0,
+    cntGs:0, cntAu:0,
+    pkGs:{}, pkAu:{},
+    ordGs:[],  // ✅ Bestellnummern: fehlt in GS
+    ordAu:[]   // ✅ Bestellnummern: fehlt in AU
+  };
+}
+
 
   if(r.status === "MISSING_GS"){
     daily[date].cntGs += 1;
     daily[date].sumGs += Number(r.myPrice || 0);
+	const on = normalizeOrderNo(r.orderNo);
+if(on) daily[date].ordGs.push(on);
+
 
     const pn = String(r.myPackage||"").trim();
     if(pn && activeNames.has(pn)){
@@ -2847,6 +2871,9 @@ for(const r of (cmpRows||[])){
   if(r.status === "MISSING_ORD"){
     daily[date].cntAu += 1;
     daily[date].sumAu += Number(r.gsPrice || 0);
+	const on = normalizeOrderNo(r.orderNo);
+if(on) daily[date].ordAu.push(on);
+
 
     const pn = __pkgNameFromGsPrice(r.gsPrice);
     if(pn && activeNames.has(pn)){
@@ -2905,17 +2932,19 @@ if(cmpActiveTab === "DAILY"){
     .slice()
     .sort((a,b)=> __isoFromDdMmYyyy(a).localeCompare(__isoFromDdMmYyyy(b)));
 
-  tbl.innerHTML = `
-    <tr>
-      <th>Datum</th>
-      <th class="gs-col">Summe Fehlt in GS Preis</th>
-      <th class="au-col">Summe Fehlt in AU Preis</th>
-      <th class="gs-col">Summe der Aufträge die in GS fehlen</th>
-      <th class="au-col">Summe der Aufträge die in AU fehlen</th>
-      <th class="gs-col">Pakete Fehlt GS</th>
-      <th class="au-col">Pakete Fehlt AU</th>
-    </tr>
-  `;
+tbl.innerHTML = `
+  <tr>
+    <th style="width:44px"></th>
+    <th>Datum</th>
+    <th class="gs-col">Summe Fehlt in GS Preis</th>
+    <th class="au-col">Summe Fehlt in AU Preis</th>
+    <th class="gs-col">Aufträge fehlen in GS (Bestellnr)</th>
+    <th class="au-col">Aufträge fehlen in AU (Bestellnr)</th>
+    <th class="gs-col">Pakete Fehlt GS</th>
+    <th class="au-col">Pakete Fehlt AU</th>
+  </tr>
+`;
+
 
   for(const d of dates){
     const x = daily[d];
@@ -2923,6 +2952,34 @@ if(cmpActiveTab === "DAILY"){
 
     const pkGs = __formatPkgCounts(x.pkGs);
     const pkAu = __formatPkgCounts(x.pkAu);
+	const ordGs = __formatOrderNos(x.ordGs);
+const ordAu = __formatOrderNos(x.ordAu);
+tbl.innerHTML += `
+  <tr class="cmp-daily" data-date="${escAttr(d)}">
+    <td style="text-align:center" data-label="✓">
+      <input type="checkbox" class="cmp-daily-check" aria-label="Tag markieren ${escAttr(d)}">
+    </td>
+
+    <td data-label="Datum"><b>${d}</b></td>
+
+    <td class="gs-col" data-label="Summe GS"><b>${__moneyDE(x.sumGs)}</b></td>
+    <td class="au-col" data-label="Summe AU"><b>${__moneyDE(x.sumAu)}</b></td>
+
+    <td class="gs-col" data-label="Fehlt GS">
+      <b>${x.cntGs}</b> <span class="muted">fehlt</span>
+      <div class="cmp-ordernos">${ordGs}</div>
+    </td>
+
+    <td class="au-col" data-label="Fehlt AU">
+      <b>${x.cntAu}</b> <span class="muted">fehlt</span>
+      <div class="cmp-ordernos">${ordAu}</div>
+    </td>
+
+    <td class="gs-col pkglist" data-label="Pakete GS">${pkGs}</td>
+    <td class="au-col pkglist" data-label="Pakete AU">${pkAu}</td>
+  </tr>
+`;
+
 
     tbl.innerHTML += `
       <tr class="cmp-daily" data-date="${escAttr(d)}">
