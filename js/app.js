@@ -5,22 +5,6 @@ let pn, pp, pk, pc, symbolBtn, pkgTable;
 let tabs, dashboard, orderTable;
 let bar, progressText;
 let m_date, m_time, m_artikel, m_package, m_order;
-let cmpState = JSON.parse(localStorage.getItem("cmpState") || "{}");
-const AppState = {
-  work: {
-    days: {},
-    unknown: [],
-    activeTab: "ALL"
-  },
-  compare: {
-    rows: [],
-    activeTab: "ALL",
-    dailyState: JSON.parse(localStorage.getItem("cmpState")||"{}")
-  },
-  packages: []
-};
-
-
 
 
 
@@ -46,7 +30,6 @@ window.addEventListener('load', () => {
   m_order = document.getElementById('m_order');
 
 });
-
 
 
 /* ---------- DATEN ---------- */
@@ -93,7 +76,6 @@ function addPackage(){
   pn.value = pp.value = pk.value = "";
   symbolBtn.innerText = "📦";
   savePackages();
-  recalcPackagesForAll();
   renderAll();
 }
 
@@ -154,8 +136,6 @@ function renderPackages(){
 
   // ⚠️ wenn Pakete geändert werden, auch Gutschrift neu rendern (damit Filter stimmt)
   if(gsEntries.length || gsKmEntries.length || gsAltEntries.length){
-
-
     renderGutschriftAll();
   }
 }
@@ -172,7 +152,6 @@ function renamePackage(i,n){
   packages[i].name = n;
   Object.values(days).flat().forEach(o=>{ if(o.package===old) o.package=n; });
   savePackages();
-  recalcPackagesForAll(); 
   renderAll();
 }
 
@@ -405,7 +384,6 @@ function importPackages(files){
 
       packages = normalized;
       savePackages();
-	  recalcPackagesForAll();
       renderAll();
       alert("✅ Pakete erfolgreich importiert!");
     }catch(err){
@@ -581,8 +559,7 @@ __ocrBar(done / files.length);
 
 __sortAllOrders();
 
-    recalcPackagesForAll();
-renderAll();
+    assignPackagesAfterOCR();
   }catch(err){
     console.error(err);
     try{ __ocrStatus('❌ ' + (err && err.message ? err.message : String(err))); }catch(e){}
@@ -590,27 +567,26 @@ renderAll();
   }
 }
 
-
-
-//4.2 PAKETE neu berechnen bei Änderung / Import
-function recalcPackagesForAll(){
+function assignPackagesAfterOCR(){
   const all = [];
-  Object.values(days).forEach(d => Array.isArray(d) && all.push(...d));
+  for(const d of Object.keys(days)){
+    if(Array.isArray(days[d])) all.push(...days[d]);
+  }
   if(Array.isArray(unknown)) all.push(...unknown);
 
   for(const o of all){
     const pkg = findPkg(o.artikel || "");
     if(pkg){
       o.package = pkg.name;
-      o.price   = pkg.price;
-    }else{
+      o.price = pkg.price;
+    } else {
       o.package = "";
-      o.price   = 0;
+      o.price = 0;
     }
   }
+
+  renderAll();
 }
-
-
 // helpeer funktion parse für bestellnummer 
 function ocrDigits(s){
   // OCR-typische Verwechslungen -> Ziffern normalisieren
@@ -1170,13 +1146,7 @@ function renderTabs(){
   const keys = (typeof __sortedDayKeys === "function") ? __sortedDayKeys() : Object.keys(days);
 
   keys.forEach(d=>{
-    tabs.innerHTML += `
-<span class="${activeTab==d?'active':''}"
-      onclick="setTab('${d}')"
-      ondblclick="editTabDate('${d}')">
-  ${d}
-</span>`;
-
+    tabs.innerHTML += `<span class="${activeTab==d?'active':''}" onclick="setTab('${d}')">${d}</span>`;
   });
 
   tabs.innerHTML += `<span class="${activeTab=="UNK"?"active":""}" onclick="setTab('UNK')">❗ Unbekannt (${unknown.length})</span>`;
@@ -1184,47 +1154,10 @@ function renderTabs(){
 
 
 function setTab(t){ activeTab=t; renderAll(); }
-function editTabDate(oldDate){
-  const input = document.createElement("input");
-  input.type = "date";
-  input.style.position = "fixed";
-  input.style.left = "-9999px";
-  document.body.appendChild(input);
-
-  input.onchange = ()=>{
-    const newDate = formatDateFromPicker(input.value);
-    if(!newDate || newDate === oldDate) return;
-
-    // days
-    days[newDate] = (days[newDate] || []).concat(days[oldDate] || []);
-    delete days[oldDate];
-
-    // Gutschrift
-    gsEntries.forEach(e=>{
-      if(e.date === oldDate) e.date = newDate;
-    });
-    gsKmEntries.forEach(e=>{
-      if(e.date === oldDate) e.date = newDate;
-    });
-    gsAltEntries.forEach(e=>{
-      if(e.date === oldDate) e.date = newDate;
-    });
-
-    activeTab = newDate;
-    renderAll();
-    document.body.removeChild(input);
-  };
-
-  input.click();
-}
 
 function renderDashboard(){
   let orders = activeTab==="ALL" ? [...Object.values(days).flat()] : activeTab!=="UNK" ? (days[activeTab]||[]) : unknown;
-  let pkgSum = orders.reduce((a,b)=>{
-  if(Number.isFinite(b.price) && b.price > 0) return a + b.price;
-  return a;
-}, 0);
-
+  let pkgSum = orders.reduce((a,b)=>a+(b.price||0),0);
 
   let pkgCount={};
   packages.filter(p=>p.show).forEach(p=>pkgCount[p.name]=0);
@@ -1237,12 +1170,8 @@ function renderDashboard(){
     return `<div class="card" style="background:${color}33;border-color:${color}"><b>${ico} ${n}</b><br>${c} Aufträge</div>`;
   }).join("");
 
-  dashboard.innerHTML = `
-  <div class="card"><b>Aufträge</b><br>${orders.length}</div>
-  <div class="card"><b>Gesamt €</b><br>${pkgSum.toFixed(2)}</div>
-  ${packages.length ? pkgCards : `<div class="card muted">Keine Pakete definiert</div>`}
-`;
-
+  dashboard.innerHTML = `<div class="card"><b>Aufträge</b><br>${orders.length}</div>
+  <div class="card"><b>Pakete €</b><br>${pkgSum.toFixed(2)}</div>${pkgCards}`;
 }
 // ===== Jump / Scroll Helpers =====
 
@@ -1300,22 +1229,10 @@ function statusSelectHtml(current, onChangeJs){
 }
 let __uiOrdersRef = [];
 
-function renderWorkOnly(){
-  renderTabs();
-  renderDashboard();
-  renderOrders();
-}
-
-function renderPackagesOnly(){
-  renderPackages();
-  fillManualPackages();
-}
-
-
 function setWorkOrderNo(i, raw){
   const o = (__uiOrdersRef && __uiOrdersRef[i]) ? __uiOrdersRef[i] : null;
   if(!o) return;
-  o.orderNo = String(raw || "").trim();   // ✅ STRING behalten
+  o.orderNo = normalizeOrderNo(raw);
 
   // Status nach manueller Änderung erstmal neutral lassen (Vergleich setzt später neu)
   if(o.matchStatus) o.matchStatus = "";
@@ -1520,15 +1437,14 @@ function renderOrders(){
 
     const vgEnabled = isCompareReady();
 
-    const gsReady = Array.isArray(gsEntries) && gsEntries.length > 0;
 const orderCell = `
   <div class="ord-cell">
-    <input class="ord-input"
-       placeholder="Bestellnr"
+    <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
            value="${escAttr(on)}"
            onchange="setWorkOrderNo(${i}, this.value)">
 
-	    ${on ? `<button type="button" class="jump-btn" data-jump="GS" ${gsReady ? "" : "disabled"} onclick="${gsReady ? `jumpTo('GS','${on}','AUF')` : "return false;"}">GS</button>` : ""}
+    ${on ? `<button type="button" class="jump-btn" data-jump="GS"
+            onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
 
     ${on ? `<button type="button" class="jump-btn" data-jump="VG"
         ${vgEnabled ? "" : "disabled"}
@@ -1586,6 +1502,7 @@ function assignPkg(name, i){
 
 function renderAll(){
   __sortAllOrders();          // ✅ Sortierung einmal zentral
+  renderPackages();
   renderTabs();
   renderDashboard();
   renderOrders();
@@ -1734,11 +1651,6 @@ function clearGutschrift(){
   if(dash) dash.innerHTML = "";
   if(tabs) tabs.innerHTML = "";
   if(tbl)  tbl.innerHTML = "";
-
-  // ✅ Work-Tabelle neu zeichnen, damit GS-Jump Buttons deaktiviert werden
-  try{ if(typeof renderOrders === "function") renderOrders(); }catch(e){}
-  // Optional: Vergleich neu zeichnen (Buttons/States aktualisieren)
-  try{ if(typeof renderCompare === "function") renderCompare(); }catch(e){}
 
   alert("✅ Gutschrift gelöscht.");
 }
@@ -2051,7 +1963,7 @@ const vgEnabled = isCompareReady();
 
 const orderCell =
   `<div class="ord-cell">` +
-    `<input class="ord-input" placeholder="Bestellnr"` +
+    `<input class="ord-input" inputmode="numeric" placeholder="Bestellnr" ` +
       `value="${escAttr(on)}" onchange="setGsOrderNo(${i}, this.value)">` +
 
     (on ? `<button type="button" class="jump-btn" data-jump="AUF"
@@ -2118,10 +2030,7 @@ function toggleWorkStatusFilter(sym, checked){
   renderOrders(); // nur Tabelle neu, nicht renderAll (schneller, weniger Hänger)
 }
 
-// Vergleich checkbox speichern
-function saveCmpState(){
-  localStorage.setItem("cmpState", JSON.stringify(cmpState));
-}
+
 
 function renderGutschriftAll(){
   // ✅ Filter + Tabs IMMER rendern (auch wenn leer)
@@ -2462,11 +2371,6 @@ function jumpTo(target, orderNo, fromTag, statusHint){
   if(!on) return;
 
   if(target === "GS"){
-  // ✅ Nur springen wenn Gutschrift geladen ist
-  if(!Array.isArray(gsEntries) || gsEntries.length === 0){
-    alert("❗ Bitte zuerst Gutschrift (XLSX/PDF) laden.");
-    return;
-  }
     __openContent("gsContent", "toggleGutschrift");
 
     const hit = (Array.isArray(gsEntries) ? gsEntries : [])
@@ -2641,7 +2545,6 @@ function loadWork(files){
         if(typeof __sortAllOrders === "function") __sortAllOrders();
       }catch(e){}
 
-recalcPackagesForAll(); 
       renderAll();
       alert("✅ Arbeit geladen.");
     }catch(err){
@@ -2841,11 +2744,7 @@ async function runComparison(){
   __setProg(cmpBar, cmpProgressText, 0.99, "Vergleich: rendern…");
   await __yieldUI();
 
-  const result = compareWorkWithGs();
-  applyCompareResult(result);
   renderCompare();
-  renderOrders();        // nur Work
-  renderGutschriftAll(); // nur GS
 
   __setProg(cmpBar, cmpProgressText, 1.00, `✅ Vergleich fertig: ${cmpRows.length} Zeilen`);
 }
@@ -3058,21 +2957,7 @@ if(cmpActiveTab === "DAILY"){
     tbl.innerHTML += `
       <tr class="cmp-daily" data-date="${escAttr(d)}">
         <td style="text-align:center" data-label="✓">
-          <td>
-  <label>
-    <input type="checkbox"
-      ${cmpState[`DAILY_${d}_GS`]?"checked":""}
-      onchange="cmpState[`DAILY_${d}_GS`]=this.checked;saveCmpState()">
-    GS
-  </label>
-  <label>
-    <input type="checkbox"
-      ${cmpState[`DAILY_${d}_AU`]?"checked":""}
-      onchange="cmpState[`DAILY_${d}_AU`]=this.checked;saveCmpState()">
-    AU
-  </label>
-</td>
-
+          <input type="checkbox" class="cmp-daily-check" aria-label="Tag markieren ${escAttr(d)}">
         </td>
 
         <td data-label="Datum"><b>${d}</b></td>
@@ -3158,8 +3043,8 @@ else cls="cmp-bad";
     <td data-label="Bestellnr">
       <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
         <b>${on || ""}</b>
-        ${(on && r.status !== "MISSING_GS") ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : ``}
-        ${(on && r.status !== "MISSING_ORD") ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : ``}
+        ${on ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : ``}
+        ${on ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : ``}
       </div>
     </td>
 
