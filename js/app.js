@@ -6,8 +6,6 @@ let tabs, dashboard, orderTable;
 let bar, progressText;
 let m_date, m_time, m_artikel, m_package, m_order;
 
-
-
 window.addEventListener('load', () => {
   pn = document.getElementById('pn');
   pp = document.getElementById('pp');
@@ -1437,14 +1435,14 @@ function renderOrders(){
 
     const vgEnabled = isCompareReady();
 
+    const gsReady = Array.isArray(gsEntries) && gsEntries.length > 0;
 const orderCell = `
   <div class="ord-cell">
     <input class="ord-input" inputmode="numeric" placeholder="Bestellnr"
            value="${escAttr(on)}"
            onchange="setWorkOrderNo(${i}, this.value)">
 
-    ${on ? `<button type="button" class="jump-btn" data-jump="GS"
-            onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
+    ${(on && gsReady) ? `<button type="button" class="jump-btn" data-jump="GS" onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
 
     ${on ? `<button type="button" class="jump-btn" data-jump="VG"
         ${vgEnabled ? "" : "disabled"}
@@ -2290,39 +2288,6 @@ function parseGutschriftEntriesFromText(text){
 // Vergleichs UI Logik
 let cmpActiveTab = "ALL";
 let cmpRows = [];
-// ✅ Merker für DAILY-Checkboxen (Fehlt GS vs AU)
-let cmpDailyChecked = new Set();
-
-try{
-  const saved = JSON.parse(localStorage.getItem("cmpDailyChecked") || "[]");
-  if(Array.isArray(saved)) cmpDailyChecked = new Set(saved.map(String));
-}catch(e){
-  cmpDailyChecked = new Set();
-}
-
-function __saveCmpDailyChecked(){
-  try{
-    localStorage.setItem("cmpDailyChecked", JSON.stringify(Array.from(cmpDailyChecked)));
-  }catch(e){}
-}
-
-function toggleCmpDailyCheck(date, checked){
-  const d = String(date || "").trim();
-  if(!d) return;
-
-  if(checked) cmpDailyChecked.add(d);
-  else cmpDailyChecked.delete(d);
-
-  __saveCmpDailyChecked();
-}
-
-// optional: wenn du später einen "Reset" Button willst
-function clearCmpDailyChecks(){
-  cmpDailyChecked.clear();
-  __saveCmpDailyChecked();
-  if(cmpActiveTab === "DAILY") renderCompare();
-}
-
 
 function toggleCompare(){
   const el = document.getElementById("cmpContent");
@@ -2404,6 +2369,11 @@ function jumpTo(target, orderNo, fromTag, statusHint){
   if(!on) return;
 
   if(target === "GS"){
+  // ✅ Nur springen wenn Gutschrift geladen ist
+  if(!Array.isArray(gsEntries) || gsEntries.length === 0){
+    alert("❗ Bitte zuerst Gutschrift (XLSX/PDF) laden.");
+    return;
+  }
     __openContent("gsContent", "toggleGutschrift");
 
     const hit = (Array.isArray(gsEntries) ? gsEntries : [])
@@ -2612,7 +2582,6 @@ function __yieldUI(){
 }
 
 async function runComparison(){
-	clearCmpDailyChecks();
   __ensureDom();
   __setProg(cmpBar, cmpProgressText, 0.03, "Vergleich: starte…");
   await __yieldUI();
@@ -2991,12 +2960,7 @@ if(cmpActiveTab === "DAILY"){
     tbl.innerHTML += `
       <tr class="cmp-daily" data-date="${escAttr(d)}">
         <td style="text-align:center" data-label="✓">
-          <input type="checkbox"
-  class="cmp-daily-check"
-  ${cmpDailyChecked.has(d) ? "checked" : ""}
-  onchange="toggleCmpDailyCheck('${d}', this.checked)"
-  aria-label="Tag markieren ${escAttr(d)}">
-
+          <input type="checkbox" class="cmp-daily-check" aria-label="Tag markieren ${escAttr(d)}">
         </td>
 
         <td data-label="Datum"><b>${d}</b></td>
@@ -3074,32 +3038,28 @@ else cls="cmp-bad";
 
 
   const on = normalizeOrderNo(r.orderNo);
-const showGSBtn  = (cmpActiveTab !== "MISSING_GS");   // in "Fehlt GS" => GS ausblenden
-const showAUFBtn = (cmpActiveTab !== "MISSING_ORD");  // in "Fehlt AU" => AUF ausblenden
 
-const gsBtn  = (on && showGSBtn)  ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : "";
-const aufBtn = (on && showAUFBtn) ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : "";
-
-tbl.innerHTML += `
+  tbl.innerHTML += `
   <tr class="${cls}" data-orderno="${escAttr(on)}">
-    <td>${r.status}</td>
-    <td>
-      <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
+    <td data-label="Status">${r.status}</td>
+
+    <td data-label="Bestellnr">
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
         <b>${on || ""}</b>
-        ${gsBtn}
-        ${aufBtn}
+        ${(on && r.status !== "MISSING_GS") ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : ``}
+        ${(on && r.status !== "MISSING_ORD") ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : ``}
       </div>
     </td>
-    <td>${r.date||""}</td>
-    <td>${r.time||""}</td>
-    <td>${r.artikel||""}</td>
-    <td>${r.myPackage||""}</td>
-    <td>${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
-    <td>${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
-    <td>${r.note||""}</td>
+
+    <td data-label="Datum">${r.date||""}</td>
+    <td data-label="Uhrzeit">${r.time||""}</td>
+    <td data-label="Auftrag">${r.artikel||""}</td>
+    <td data-label="Paket">${r.myPackage||""}</td>
+    <td data-label="Preis (App)">${r.myPrice==null ? "" : Number(r.myPrice).toFixed(2)}</td>
+    <td data-label="Preis (GS)">${r.gsPrice==null ? "" : Number(r.gsPrice).toFixed(2)}</td>
+    <td data-label="Hinweis">${r.note||""}</td>
   </tr>
 `;
-
 
 }
 
