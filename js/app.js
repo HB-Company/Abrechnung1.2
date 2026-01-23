@@ -3082,8 +3082,8 @@ else cls="cmp-bad";
     <td data-label="Bestellnr">
       <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
         <b>${on || ""}</b>
-        ${on ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : ``}
-        ${on ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : ``}
+        ${(on && cmpActiveTab !== 'MISSING_GS') ? `<button class="chip" data-jump="GS" onclick="jumpTo('GS','${on}','VG')">GS</button>` : ``}
+        ${(on && cmpActiveTab !== 'MISSING_ORD') ? `<button class="chip" data-jump="AUF" onclick="jumpTo('AUF','${on}','VG')">AUF</button>` : ``}
       </div>
     </td>
 
