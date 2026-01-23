@@ -6,6 +6,8 @@ let tabs, dashboard, orderTable;
 let bar, progressText;
 let m_date, m_time, m_artikel, m_package, m_order;
 
+
+
 window.addEventListener('load', () => {
   pn = document.getElementById('pn');
   pp = document.getElementById('pp');
@@ -1442,7 +1444,7 @@ const orderCell = `
            value="${escAttr(on)}"
            onchange="setWorkOrderNo(${i}, this.value)">
 
-    ${(on && gsReady) ? `<button type="button" class="jump-btn" data-jump="GS" onclick="jumpTo('GS','${on}','AUF')">GS</button>` : ""}
+	    ${on ? `<button type="button" class="jump-btn" data-jump="GS" ${gsReady ? "" : "disabled"} onclick="${gsReady ? `jumpTo('GS','${on}','AUF')` : "return false;"}">GS</button>` : ""}
 
     ${on ? `<button type="button" class="jump-btn" data-jump="VG"
         ${vgEnabled ? "" : "disabled"}
@@ -1649,6 +1651,11 @@ function clearGutschrift(){
   if(dash) dash.innerHTML = "";
   if(tabs) tabs.innerHTML = "";
   if(tbl)  tbl.innerHTML = "";
+
+  // ✅ Work-Tabelle neu zeichnen, damit GS-Jump Buttons deaktiviert werden
+  try{ if(typeof renderOrders === "function") renderOrders(); }catch(e){}
+  // Optional: Vergleich neu zeichnen (Buttons/States aktualisieren)
+  try{ if(typeof renderCompare === "function") renderCompare(); }catch(e){}
 
   alert("✅ Gutschrift gelöscht.");
 }
