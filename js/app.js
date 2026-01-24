@@ -789,12 +789,13 @@ function digitsOnly(x){
 }
 function normalizeDigitChunk(raw){
   // Nur innerhalb eines Kandidaten-Chunks normalisieren (nicht im ganzen Text!)
-  return String(raw || "")
-    .replace(/[Oo]/g, "0")
-    .replace(/[Il|]/g, "1")
-    .replace(/[Zz]/g, "2")
-    .replace(/[Bb]/g, "8")
-    .replace(/\D/g, ""); // am Ende nur Ziffern
+ // return String(raw || "")
+   // .replace(/[Oo]/g, "0")
+   // .replace(/[Il|]/g, "1")
+   // .replace(/[Zz]/g, "2")
+  //  .replace(/[Bb]/g, "8")
+  //  .replace(/\D/g, ""); // am Ende nur Ziffern
+	return String(raw);
 }
 
 /**
@@ -1504,7 +1505,7 @@ const orderCell = `
         <td data-label="Datum">${o.date||''}</td>
         <td data-label="Uhrzeit">${o.time||''}</td>
         <td data-label="Bestellnr">${orderCell}</td>
-        <td data-label="Artikel"><span class="pkg-ico">${o.package?(__pkgIconByName?__pkgIconByName(o.package):"📦"):""}</span>${o.package?" ":""}${o.artikel||""}</td>
+        <td data-label="Artikel">${o.artikel||''}</td>
         <td data-label="Paket">${sel}</td>
         <td data-label="Preis €">${o.price||0}</td>
       </tr>`;
@@ -2906,6 +2907,148 @@ function __formatPkgCounts(map){
   return entries.map(([name,c]) => `${c}×${__pkgIconByName(name)} ${name}`).join("  ");
 }
 
+
+// ===== VG Export: Gutschrift-Korrektur (PRICE_DIFF) =====
+function __downloadText(filename, content, mime){
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + String(content||"")], { type: (mime||"text/plain;charset=utf-8") });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),0);
+}
+
+function exportPriceDiffCorrection(){
+  try{
+    const rows = (cmpRows||[]).filter(r => r && r.status === "PRICE_DIFF");
+    if(!rows.length){
+      alert("❗ Keine PRICE_DIFF Einträge vorhanden.");
+      return;
+    }
+
+    // sortiert wie Tabelle
+    try{ rows.sort(__cmpRowSort); }catch(e){}
+
+    const fmtMoney = (n) => {
+      const x = Number(n||0);
+      try{ return x.toLocaleString("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2}); }
+      catch(e){ return x.toFixed(2).replace(".", ","); }
+    };
+
+    const today = new Date();
+    const stamp = today.toISOString().slice(0,10);
+    const created = today.toLocaleString("de-DE");
+
+    let netTotal = 0;
+
+    const lineHtml = rows.map((r, i)=>{
+      const app = Number(r.myPrice ?? 0);
+      const gs  = Number(r.gsPrice ?? 0);
+      const diff = app - gs; // Korrektur: Preis(App) - Preis(GS)
+      netTotal += diff;
+
+      const id  = escAttr(normalizeOrderNo(r.orderNo));
+      const dt  = escAttr(r.date||"");
+      const tm  = escAttr(r.time||"");
+      const pkg = escAttr(r.myPackage||"");
+      const art = escAttr(r.artikel||"");
+
+      return `
+        <tr>
+          <td class="nr">${i+1}</td>
+          <td>${dt}</td>
+          <td>${tm}</td>
+          <td>${id}</td>
+          <td>${pkg}</td>
+          <td class="text">${art}</td>
+          <td class="num">${fmtMoney(app)} €</td>
+          <td class="num">${fmtMoney(gs)} €</td>
+          <td class="num ${diff<0?"neg":diff>0?"pos":""}">${fmtMoney(diff)} €</td>
+        </tr>
+      `;
+    }).join("");
+
+    const vatRate = 0.19;
+    const vat = netTotal * vatRate;
+    const gross = netTotal + vat;
+
+    const html = `<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gutschrift-Korrektur (Preisabweichungen)</title>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;margin:24px;color:#111}
+  .wrap{max-width:980px;margin:0 auto}
+  h1{margin:0 0 6px;font-size:22px}
+  .meta{color:#555;font-size:13px;margin-bottom:18px}
+  .box{border:1px solid #ddd;border-radius:12px;padding:14px 16px;margin:14px 0 18px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{border-bottom:1px solid #eee;padding:8px 8px;vertical-align:top}
+  th{background:#fafafa;text-align:left;font-size:12px;color:#444}
+  td.num{text-align:right;white-space:nowrap}
+  td.nr{width:34px;text-align:right;color:#666}
+  td.text{min-width:220px}
+  .pos{color:#0a7a2f;font-weight:700}
+  .neg{color:#b42318;font-weight:700}
+  .totals{margin-top:14px;width:360px;margin-left:auto}
+  .totals td{border:none;padding:5px 0}
+  .totals .lbl{color:#555}
+  .totals .val{text-align:right;font-weight:800;white-space:nowrap}
+  .foot{color:#666;font-size:12px;margin-top:18px;line-height:1.35}
+  @media print{body{margin:0}.box{border-color:#ccc}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Gutschrift‑Korrektur (Preisabweichungen)</h1>
+  <div class="meta">Erstellt am ${created} • Quelle: Vergleich → Tab “⚠ Preis” • Korrektur = Preis(App) − Preis(GS)</div>
+
+  <div class="box">
+    <b>Zusammenfassung</b><br>
+    Positionen: ${rows.length}<br>
+    Netto‑Differenz: <b>${fmtMoney(netTotal)} €</b><br>
+    MwSt (19%): <b>${fmtMoney(vat)} €</b><br>
+    Gesamt (Brutto): <b>${fmtMoney(gross)} €</b>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th><th>Datum</th><th>Zeit</th><th>Bestellnr</th><th>Paket</th><th>Auftrag</th>
+        <th class="num">Preis (App)</th><th class="num">Preis (GS)</th><th class="num">Differenz</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${lineHtml}
+    </tbody>
+  </table>
+
+  <table class="totals">
+    <tr><td class="lbl">Netto‑Summe</td><td class="val">${fmtMoney(netTotal)} €</td></tr>
+    <tr><td class="lbl">MwSt (19%)</td><td class="val">${fmtMoney(vat)} €</td></tr>
+    <tr><td class="lbl">Gesamt (Brutto)</td><td class="val">${fmtMoney(gross)} €</td></tr>
+  </table>
+
+  <div class="foot">
+    Hinweis: Positive Differenz bedeutet “zu wenig in der Gutschrift” (Nachbelastung). Negative Differenz bedeutet “zu viel in der Gutschrift” (Rückbelastung).
+  </div>
+</div>
+</body>
+</html>`;
+
+    __downloadText(`gutschrift-korrektur_preis_${stamp}.html`, html, "text/html;charset=utf-8");
+  }catch(err){
+    console.error(err);
+    alert("❌ Export Fehler: " + (err?.message || String(err)));
+  }
+}
+
 function renderCompare(){
   const sumEl = document.getElementById("cmpSummary");
   const tabEl = document.getElementById("cmpTabs");
@@ -2986,7 +3129,9 @@ const dailyCount = dailyDates.length;
     <div class="card"><b>❌📄 Fehlt GS</b><br>${counts.MISSING_GS}</div>
     <div class="card"><b>❌🧾 Fehlt AUF</b><br>${counts.MISSING_ORD}</div>
     <div class="card"><b>ℹ Keine Nr</b><br>${counts.NO_ID}</div>
-  `;
+    ${counts.PRICE_DIFF ? '<div class="card"><button class="primary" style="width:100%" onclick="exportPriceDiffCorrection()">🧾 Gutschrift‑Korrektur exportieren</button><div class="helper">HTML mit Netto, 19% MwSt &amp; Brutto</div></div>' : ''}
+
+`;
 
   // Tabs
  tabEl.innerHTML = `
