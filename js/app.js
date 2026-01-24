@@ -2922,7 +2922,10 @@ function __downloadText(filename, content, mime){
   setTimeout(()=>URL.revokeObjectURL(url),0);
 }
 
-function exportPriceDiffCorrection(){
+// 🧾 Export als PDF (über Druckdialog „Als PDF speichern“)
+// Ohne externe Libraries kann JS im Browser kein echtes PDF „downloaden“.
+// Deshalb: Wir öffnen eine Druckansicht und starten (wenn möglich) den Druckdialog.
+function exportPriceDiffCorrection(format){
   try{
     const priceRows = (cmpRows || []).filter(r => r && r.status === "PRICE_DIFF");
     const missGsRows = (cmpRows || []).filter(r => r && r.status === "MISSING_GS");
@@ -2932,7 +2935,16 @@ function exportPriceDiffCorrection(){
       return;
     }
 
-    // FO-Index aus Gutschrift (Bestellnr -> FO)
+    
+    // --- Exportformat wählen: 'pdf' oder 'html' ---
+    let __mode = String(format || "").toLowerCase().trim();
+    if(__mode !== "pdf" && __mode !== "html"){
+      // Nutzer fragen (OK = PDF, Abbrechen = HTML)
+      const okPdf = window.confirm("🧾 Export wählen:\nOK = PDF (Drucken/Speichern)\nAbbrechen = HTML Download");
+      __mode = okPdf ? "pdf" : "html";
+    }
+
+// FO-Index aus Gutschrift (Bestellnr -> FO)
     const foMap = new Map();
     for(const e of (gsEntries || [])){
       const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
@@ -3027,16 +3039,17 @@ function exportPriceDiffCorrection(){
       .map(([k,v]) => `<tr><td>${String(k)}</td><td style="text-align:right"><b>${String(v)}</b></td></tr>`)
       .join("");
 
-    const invoiceBlock = `
-      <div class="box">
-        <div class="h3">Rechnung / Gutschrift‑Details (aus Import)</div>
+   const invoiceBlock = `
+     <div class="box">
+       <div class="h3">Rechnung / Gutschrift‑Details (aus Import)</div>
         ${
           invoiceRows
-            ? `<table class="sumtbl">${invoiceRows}</table>`
+           ? `<table class="sumtbl">${invoiceRows}</table>`
             : `<div class="muted">Keine Rechnungsdaten geladen (Table 5).</div>`
-        }
-      </div>
-    `;
+      }
+     </div>
+   `;
+   
 
     const css = `
       :root{ --text:#111827; --muted:#6b7280; --line:#e5e7eb; --pos:#16a34a; --neg:#dc2626; }
@@ -3056,6 +3069,8 @@ function exportPriceDiffCorrection(){
       .neg{ color:var(--neg); }
       .pagebreak{ page-break-before: always; }
       @media print{
+      *{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
         body{ margin:12mm; }
         a,button{ display:none !important; }
       }
@@ -3131,7 +3146,15 @@ function exportPriceDiffCorrection(){
 </body>
 </html>`;
 
-    // 1) Druckfenster öffnen
+  
+  // --- HTML Download (statt PDF) ---
+  if(__mode === "html"){
+    __downloadText(`gutschrift-korrektur_${stamp.replace(/\./g,"-")}_${timeStamp}.html`, html, "text/html;charset=utf-8");
+    alert("✅ HTML Export erstellt. (Du kannst die Datei im Browser öffnen und ggf. selbst drucken.)");
+    return;
+  }
+
+  // 1) Druckfenster öffnen
     const w = window.open("", "_blank");
     if(!w){
       // Popup-Blocker → Fallback: HTML herunterladen (dann manuell drucken)
