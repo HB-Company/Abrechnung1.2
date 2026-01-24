@@ -3099,9 +3099,6 @@ function exportPriceDiffCorrection(){
 
   <h1>📄 Fehlt in GS</h1>
   <div class="sub">Seite 2 – Aufträge fehlen in der Gutschrift (MISSING_GS)</div>
-
-  ${summaryBlock()}
-
   <div class="box">
     <div class="h3">Seite 2 – Fehlt in GS (MISSING_GS)</div>
     <div class="muted">Diese Aufträge sind in der App vorhanden, aber nicht in der Gutschrift. Beträge sind grün markiert.</div>
