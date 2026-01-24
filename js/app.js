@@ -2924,140 +2924,222 @@ function __downloadText(filename, content, mime){
 
 function exportPriceDiffCorrection(){
   try{
-    const rows = (cmpRows||[]).filter(r => r && r.status === "PRICE_DIFF");
+    const priceRows = (cmpRows || []).filter(r => r && r.status === "PRICE_DIFF");
+    const missGsRows = (cmpRows || []).filter(r => r && r.status === "MISSING_GS");
 
-  // FO Nummer je Bestellnr aus Gutschrift holen
-  const foMap = new Map();
-  (gsEntries || []).forEach(e => {
-    const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
-    if(id && !foMap.has(id)) foMap.set(id, String(e.fo || ""));
-  });
-
-    if(!rows.length){
-      alert("❗ Keine PRICE_DIFF Einträge vorhanden.");
+    if(!priceRows.length && !missGsRows.length){
+      alert("❗ Keine Einträge für Preis oder Fehlt GS vorhanden.");
       return;
     }
 
-    // sortiert wie Tabelle
-    try{ rows.sort(__cmpRowSort); }catch(e){}
-
-    const fmtMoney = (n) => {
-      const x = Number(n||0);
-      try{ return x.toLocaleString("de-DE",{minimumFractionDigits:2, maximumFractionDigits:2}); }
-      catch(e){ return x.toFixed(2).replace(".", ","); }
-    };
+    // FO-Index aus Gutschrift (Bestellnr -> FO)
+    const foMap = new Map();
+    for(const e of (gsEntries || [])){
+      const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
+      if(!id) continue;
+      if(!foMap.has(id)) foMap.set(id, String(e.fo || "").trim());
+    }
 
     const today = new Date();
-    const stamp = today.toISOString().slice(0,10);
-    const created = today.toLocaleString("de-DE");
+    const pad2 = (n)=>String(n).padStart(2,"0");
+    const stamp = `${pad2(today.getDate())}.${pad2(today.getMonth()+1)}.${today.getFullYear()}`;
+    const timeStamp = `${pad2(today.getHours())}${pad2(today.getMinutes())}`;
 
-    let netTotal = 0;
+    const money = (n)=>__moneyDE(Number(n||0));
+    const cls = (n)=>{
+      const x = Number(n||0);
+      if(Math.abs(x) < 0.005) return "";
+      return x > 0 ? "pos" : "neg";
+    };
 
-    const lineHtml = rows.map((r, i)=>{
-      const app = Number(r.myPrice ?? 0);
-      const gs  = Number(r.gsPrice ?? 0);
-      const diff = app - gs; // Korrektur: Preis(App) - Preis(GS)
-      netTotal += diff;
+    // Preis-Korrektur (nur PRICE_DIFF): (App - GS)
+    let sumDiff = 0;
+    for(const r of priceRows){
+      sumDiff += (Number(r.myPrice||0) - Number(r.gsPrice||0));
+    }
 
-      const rawId = normalizeOrderNo(r.orderNo);
-      const id  = escAttr(rawId);
-      const fo  = escAttr(foMap.get(rawId) || "");
-      const dt  = escAttr(r.date||"");
-      const tm  = escAttr(r.time||"");
-      const pkg = escAttr(r.myPackage||"");
-      const art = escAttr(r.artikel||"");
+    // Fehlt in GS: volle App-Preise addieren
+    let sumMissing = 0;
+    for(const r of missGsRows){
+      sumMissing += Number(r.myPrice||0);
+    }
 
+    const netAll   = sumDiff + sumMissing;
+    const vatAll   = netAll * 0.19;
+    const grossAll = netAll + vatAll;
+
+    const summaryBlock = () => `
+      <div class="box">
+        <div class="h3">Zusammenfassung (beide Seiten)</div>
+        <table class="sumtbl">
+          <tr><td>Preisabweichungen (PRICE_DIFF)</td><td style="text-align:right"><b>${priceRows.length}</b></td></tr>
+          <tr><td>Fehlt in GS (MISSING_GS)</td><td style="text-align:right"><b>${missGsRows.length}</b></td></tr>
+          <tr><td>Summe Korrektur Preisabweichung</td><td class="${cls(sumDiff)}" style="text-align:right"><b>${money(sumDiff)}</b></td></tr>
+          <tr><td>Summe Fehlt in GS</td><td class="pos" style="text-align:right"><b>${money(sumMissing)}</b></td></tr>
+          <tr class="total"><td>Netto Korrektur gesamt</td><td class="${cls(netAll)}" style="text-align:right"><b>${money(netAll)}</b></td></tr>
+          <tr><td>+ 19% MwSt</td><td class="${cls(vatAll)}" style="text-align:right"><b>${money(vatAll)}</b></td></tr>
+          <tr class="total"><td>Brutto Korrektur gesamt</td><td class="${cls(grossAll)}" style="text-align:right"><b>${money(grossAll)}</b></td></tr>
+        </table>
+      </div>
+    `;
+
+    const priceTableRows = priceRows.map((r, i)=>{
+      const on = normalizeOrderNo(r.orderNo);
+      const fo = on ? (foMap.get(on) || "") : "";
+      const my = Number(r.myPrice||0);
+      const gs = Number(r.gsPrice||0);
+      const diff = my - gs;
       return `
         <tr>
-          <td class="nr">${i+1}</td>
-          <td>${dt}</td>
-          <td>${tm}</td>
-          <td>${id}</td>
-          <td>${fo}</td>
-          <td>${pkg}</td>
-          <td class="text">${art}</td>
-          <td class="num">${fmtMoney(app)} €</td>
-          <td class="num">${fmtMoney(gs)} €</td>
-          <td class="num ${diff<0?"neg":diff>0?"pos":""}">${fmtMoney(diff)} €</td>
+          <td>${i+1}</td>
+          <td>${r.date||""}</td>
+          <td>${r.time||""}</td>
+          <td><b>${on||""}</b></td>
+          <td>${fo || ""}</td>
+          <td>${r.myPackage||""}</td>
+          <td style="text-align:right">${money(my)}</td>
+          <td style="text-align:right">${money(gs)}</td>
+          <td class="${cls(diff)}" style="text-align:right"><b>${money(diff)}</b></td>
         </tr>
       `;
     }).join("");
 
-    const vatRate = 0.19;
-    const vat = netTotal * vatRate;
-    const gross = netTotal + vat;
+    const missingTableRows = missGsRows.map((r, i)=>{
+      const on = normalizeOrderNo(r.orderNo);
+      const fo = on ? (foMap.get(on) || "") : "";
+      const my = Number(r.myPrice||0);
+      return `
+        <tr>
+          <td>${i+1}</td>
+          <td>${r.date||""}</td>
+          <td>${r.time||""}</td>
+          <td><b>${on||""}</b></td>
+          <td>${fo || ""}</td>
+          <td>${r.myPackage||""}</td>
+          <td class="pos" style="text-align:right"><b>${money(my)}</b></td>
+          <td>${r.note||""}</td>
+        </tr>
+      `;
+    }).join("");
 
-    const html = `<!doctype html>
+    const invoiceRows = Object.entries(gsInvoice || {})
+      .filter(([k,v]) => String(k||"").trim() && String(v||"").trim())
+      .map(([k,v]) => `<tr><td>${String(k)}</td><td style="text-align:right"><b>${String(v)}</b></td></tr>`)
+      .join("");
+
+    const invoiceBlock = `
+      <div class="box">
+        <div class="h3">Rechnung / Gutschrift‑Details (aus Import)</div>
+        ${
+          invoiceRows
+            ? `<table class="sumtbl">${invoiceRows}</table>`
+            : `<div class="muted">Keine Rechnungsdaten geladen (Table 5).</div>`
+        }
+      </div>
+    `;
+
+    const css = `
+      :root{ --text:#111827; --muted:#6b7280; --line:#e5e7eb; --pos:#16a34a; --neg:#dc2626; }
+      *{ box-sizing:border-box; }
+      body{ font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; color:var(--text); margin:24px; }
+      h1{ margin:0 0 6px; font-size:18px; }
+      .sub{ color:var(--muted); font-size:12px; margin-bottom:14px; }
+      .box{ border:1px solid var(--line); border-radius:12px; padding:12px; margin:12px 0; }
+      .h3{ font-weight:800; margin:0 0 8px; }
+      .muted{ color:var(--muted); font-size:12px; }
+      table{ width:100%; border-collapse:collapse; }
+      th,td{ border-bottom:1px solid var(--line); padding:8px 8px; font-size:12px; vertical-align:top; }
+      th{ background:#f9fafb; text-align:left; font-size:11px; color:var(--muted); }
+      .sumtbl td{ border-bottom:0; padding:4px 0; font-size:12px; }
+      .sumtbl tr.total td{ padding-top:8px; border-top:1px solid var(--line); }
+      .pos{ color:var(--pos); }
+      .neg{ color:var(--neg); }
+      .pagebreak{ page-break-before: always; }
+      @media print{
+        body{ margin:12mm; }
+        a,button{ display:none !important; }
+      }
+    `;
+
+    const html = `
+<!doctype html>
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gutschrift-Korrektur (Preisabweichungen)</title>
-<style>
-  body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Arial,sans-serif;margin:24px;color:#111}
-  .wrap{max-width:980px;margin:0 auto}
-  h1{margin:0 0 6px;font-size:22px}
-  .meta{color:#555;font-size:13px;margin-bottom:18px}
-  .box{border:1px solid #ddd;border-radius:12px;padding:14px 16px;margin:14px 0 18px}
-  table{width:100%;border-collapse:collapse;font-size:12.5px}
-  th,td{border-bottom:1px solid #eee;padding:8px 8px;vertical-align:top}
-  th{background:#fafafa;text-align:left;font-size:12px;color:#444}
-  td.num{text-align:right;white-space:nowrap}
-  td.nr{width:34px;text-align:right;color:#666}
-  td.text{min-width:220px}
-  .pos{color:#0a7a2f;font-weight:700}
-  .neg{color:#b42318;font-weight:700}
-  .totals{margin-top:14px;width:360px;margin-left:auto}
-  .totals td{border:none;padding:5px 0}
-  .totals .lbl{color:#555}
-  .totals .val{text-align:right;font-weight:800;white-space:nowrap}
-  .foot{color:#666;font-size:12px;margin-top:18px;line-height:1.35}
-  @media print{body{margin:0}.box{border-color:#ccc}}
-</style>
+<title>Gutschrift-Korrektur ${stamp}</title>
+<style>${css}</style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Gutschrift‑Korrektur (Preisabweichungen)</h1>
-  <div class="meta">Erstellt am ${created} • Quelle: Vergleich → Tab “⚠ Preis” • Korrektur = Preis(App) − Preis(GS)</div>
+
+  <h1>🧾 Gutschrift‑Korrektur exportieren</h1>
+  <div class="sub">Erstellt am ${stamp} • Enthält: Preisabweichungen (PRICE_DIFF) + Fehlt in GS (MISSING_GS)</div>
+
+  ${summaryBlock()}
 
   <div class="box">
-    <b>Zusammenfassung</b><br>
-    Positionen: ${rows.length}<br>
-    Netto‑Differenz: <b>${fmtMoney(netTotal)} €</b><br>
-    MwSt (19%): <b>${fmtMoney(vat)} €</b><br>
-    Gesamt (Brutto): <b>${fmtMoney(gross)} €</b>
-  </div>
-
-  <table>
-    <thead>
+    <div class="h3">Seite 1 – Preisabweichungen (PRICE_DIFF)</div>
+    <div class="muted">Korrektur je Auftrag = Preis (App) − Preis (GS). Positive Beträge sind grün markiert.</div>
+    <table>
       <tr>
-        <th>#</th><th>Datum</th><th>Zeit</th><th>Bestellnr</th>
-            <th>FO Nr</th><th>Paket</th><th>Auftrag</th>
-        <th class="num">Preis (App)</th><th class="num">Preis (GS)</th><th class="num">Differenz</th>
+        <th>#</th>
+        <th>Datum</th>
+        <th>Zeit</th>
+        <th>Bestellnr</th>
+        <th>FO Nr.</th>
+        <th>Paket</th>
+        <th style="text-align:right">Preis (App)</th>
+        <th style="text-align:right">Preis (GS)</th>
+        <th style="text-align:right">Korrektur</th>
       </tr>
-    </thead>
-    <tbody>
-      ${lineHtml}
-    </tbody>
-  </table>
-
-  <table class="totals">
-    <tr><td class="lbl">Netto‑Summe</td><td class="val">${fmtMoney(netTotal)} €</td></tr>
-    <tr><td class="lbl">MwSt (19%)</td><td class="val">${fmtMoney(vat)} €</td></tr>
-    <tr><td class="lbl">Gesamt (Brutto)</td><td class="val">${fmtMoney(gross)} €</td></tr>
-  </table>
-
-  <div class="foot">
-    Hinweis: Positive Differenz bedeutet “zu wenig in der Gutschrift” (Nachbelastung). Negative Differenz bedeutet “zu viel in der Gutschrift” (Rückbelastung).
+      ${priceTableRows || `<tr><td colspan="9" class="muted">Keine Preisabweichungen.</td></tr>`}
+    </table>
   </div>
-</div>
+
+  <div class="pagebreak"></div>
+
+  <h1>📄 Fehlt in GS</h1>
+  <div class="sub">Seite 2 – Aufträge fehlen in der Gutschrift (MISSING_GS)</div>
+
+  ${summaryBlock()}
+
+  <div class="box">
+    <div class="h3">Seite 2 – Fehlt in GS (MISSING_GS)</div>
+    <div class="muted">Diese Aufträge sind in der App vorhanden, aber nicht in der Gutschrift. Beträge sind grün markiert.</div>
+    <table>
+      <tr>
+        <th>#</th>
+        <th>Datum</th>
+        <th>Zeit</th>
+        <th>Bestellnr</th>
+        <th>FO Nr.</th>
+        <th>Paket</th>
+        <th style="text-align:right">Preis (App)</th>
+        <th>Hinweis</th>
+      </tr>
+      ${missingTableRows || `<tr><td colspan="8" class="muted">Keine fehlenden GS‑Einträge.</td></tr>`}
+    </table>
+  </div>
+
+  ${invoiceBlock}
+
+  <div class="box">
+    <div class="h3">Rechnung (Korrektur gesamt)</div>
+    <table class="sumtbl">
+      <tr><td>Netto</td><td class="${cls(netAll)}" style="text-align:right"><b>${money(netAll)}</b></td></tr>
+      <tr><td>+ 19% MwSt</td><td class="${cls(vatAll)}" style="text-align:right"><b>${money(vatAll)}</b></td></tr>
+      <tr class="total"><td>Brutto</td><td class="${cls(grossAll)}" style="text-align:right"><b>${money(grossAll)}</b></td></tr>
+    </table>
+  </div>
+
 </body>
 </html>`;
 
-    __downloadText(`gutschrift-korrektur_preis_${stamp}.html`, html, "text/html;charset=utf-8");
+    const fname = `gutschrift-korrektur_${stamp.replace(/\./g,"-")}_${timeStamp}.html`;
+    __downloadText(fname, html, "text/html;charset=utf-8");
+    alert("✅ Export erstellt. Datei wurde heruntergeladen.");
   }catch(err){
     console.error(err);
-    alert("❌ Export Fehler: " + (err?.message || String(err)));
+    alert("❌ Export fehlgeschlagen: " + (err?.message || String(err)));
   }
 }
 
