@@ -2925,6 +2925,14 @@ function __downloadText(filename, content, mime){
 function exportPriceDiffCorrection(){
   try{
     const rows = (cmpRows||[]).filter(r => r && r.status === "PRICE_DIFF");
+
+  // FO Nummer je Bestellnr aus Gutschrift holen
+  const foMap = new Map();
+  (gsEntries || []).forEach(e => {
+    const id = normalizeOrderNo(e.orderNo || e.beleg || e.fo);
+    if(id && !foMap.has(id)) foMap.set(id, String(e.fo || ""));
+  });
+
     if(!rows.length){
       alert("❗ Keine PRICE_DIFF Einträge vorhanden.");
       return;
@@ -2951,7 +2959,9 @@ function exportPriceDiffCorrection(){
       const diff = app - gs; // Korrektur: Preis(App) - Preis(GS)
       netTotal += diff;
 
-      const id  = escAttr(normalizeOrderNo(r.orderNo));
+      const rawId = normalizeOrderNo(r.orderNo);
+      const id  = escAttr(rawId);
+      const fo  = escAttr(foMap.get(rawId) || "");
       const dt  = escAttr(r.date||"");
       const tm  = escAttr(r.time||"");
       const pkg = escAttr(r.myPackage||"");
@@ -2963,6 +2973,7 @@ function exportPriceDiffCorrection(){
           <td>${dt}</td>
           <td>${tm}</td>
           <td>${id}</td>
+          <td>${fo}</td>
           <td>${pkg}</td>
           <td class="text">${art}</td>
           <td class="num">${fmtMoney(app)} €</td>
@@ -3020,7 +3031,8 @@ function exportPriceDiffCorrection(){
   <table>
     <thead>
       <tr>
-        <th>#</th><th>Datum</th><th>Zeit</th><th>Bestellnr</th><th>Paket</th><th>Auftrag</th>
+        <th>#</th><th>Datum</th><th>Zeit</th><th>Bestellnr</th>
+            <th>FO Nr</th><th>Paket</th><th>Auftrag</th>
         <th class="num">Preis (App)</th><th class="num">Preis (GS)</th><th class="num">Differenz</th>
       </tr>
     </thead>
