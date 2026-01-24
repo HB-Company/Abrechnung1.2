@@ -3134,9 +3134,29 @@ function exportPriceDiffCorrection(){
 </body>
 </html>`;
 
-    const fname = `gutschrift-korrektur_${stamp.replace(/\./g,"-")}_${timeStamp}.html`;
-    __downloadText(fname, html, "text/html;charset=utf-8");
-    alert("✅ Export erstellt. Datei wurde heruntergeladen.");
+    // 1) Druckfenster öffnen
+    const w = window.open("", "_blank");
+    if(!w){
+      // Popup-Blocker → Fallback: HTML herunterladen (dann manuell drucken)
+      const fname = `gutschrift-korrektur_${stamp.replace(/\./g,"-")}_${timeStamp}.html`;
+      __downloadText(fname, html, "text/html;charset=utf-8");
+      alert("⚠️ Popup blockiert. HTML wurde heruntergeladen. Öffnen → Drucken → Als PDF speichern.");
+      return;
+    }
+
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+
+    // 2) Druckdialog triggern (Browser entscheidet, ob erlaubt)
+    const tryPrint = () => {
+      try{ w.focus(); w.print(); }catch(e){}
+    };
+    // warten bis Layout/Fonts da sind
+    w.onload = () => setTimeout(tryPrint, 200);
+    setTimeout(tryPrint, 900);
+
+    alert("✅ Druckansicht geöffnet. Bitte im Dialog „Als PDF speichern“ wählen.");
   }catch(err){
     console.error(err);
     alert("❌ Export fehlgeschlagen: " + (err?.message || String(err)));
