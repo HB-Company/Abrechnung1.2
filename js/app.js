@@ -587,6 +587,48 @@ function assignPackagesAfterOCR(){
 
   renderAll();
 }
+
+// 📦 Arbeit: Pakete anhand aktueller Paket-Verwaltung (Keywords/Preis/Name) neu zuordnen
+function reassignWorkPackages(){
+  try{
+    const all = [];
+    for(const d of Object.keys(days || {})){
+      const arr = Array.isArray(days[d]) ? days[d] : [];
+      all.push(...arr);
+    }
+    if(Array.isArray(unknown)) all.push(...unknown);
+
+    for(const o of all){
+      const pkg = findPkg(o.artikel || "");
+      if(pkg){
+        o.package = pkg.name;
+        o.price = pkg.price;
+      }else{
+        o.package = "";
+        o.price = 0;
+      }
+    }
+
+    // Unbekannt -> in Datum verschieben, wenn jetzt Paket + Datum vorhanden
+    if(Array.isArray(unknown)){
+      for(let i=unknown.length-1;i>=0;i--){
+        const o = unknown[i];
+        if(o && o.package && o.date){
+          unknown.splice(i, 1);
+          days[o.date] = Array.isArray(days[o.date]) ? days[o.date] : [];
+          days[o.date].push(o);
+        }
+      }
+    }
+
+    if(typeof __sortAllOrders === "function") __sortAllOrders();
+    renderAll();
+  }catch(err){
+    console.error(err);
+    alert("❌ Fehler beim Neu-Zuordnen der Pakete: " + (err?.message || String(err)));
+  }
+}
+
 // helpeer funktion parse für bestellnummer 
 function ocrDigits(s){
   // OCR-typische Verwechslungen -> Ziffern normalisieren
@@ -1462,7 +1504,7 @@ const orderCell = `
         <td data-label="Datum">${o.date||''}</td>
         <td data-label="Uhrzeit">${o.time||''}</td>
         <td data-label="Bestellnr">${orderCell}</td>
-        <td data-label="Artikel">${o.artikel||''}</td>
+        <td data-label="Artikel"><span class="pkg-ico">${o.package?(__pkgIconByName?__pkgIconByName(o.package):"📦"):""}</span>${o.package?" ":""}${o.artikel||""}</td>
         <td data-label="Paket">${sel}</td>
         <td data-label="Preis €">${o.price||0}</td>
       </tr>`;
@@ -2021,6 +2063,7 @@ function renderWorkStatusFilters(){
     ${mk("✅")}
     ${mk("⚠️")}
     ${mk("❌")}
+    <button type="button" class="sf-btn" onclick="reassignWorkPackages()" title="Pakete neu zuordnen">📦</button>
   `;
 }
 

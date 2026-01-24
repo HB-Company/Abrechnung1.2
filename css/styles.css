@@ -1459,3 +1459,30 @@ th{
   height: 20px;
   accent-color: rgba(34,197,94,.95);
 }
+
+/* Arbeit: 📦 Button neben Status-Filtern */
+.sf-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:10px 12px;
+  min-height:46px;
+  border-radius:999px;
+  border:1px solid rgba(148,163,184,.30);
+  background: rgba(255,255,255,.10);
+  box-shadow: none;
+  font-weight:900;
+}
+.sf-btn:active{ transform: translateY(1px); }
+
+
+/* Artikel: Paket-Icon (nur Anzeige) */
+.pkg-ico{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width: 1.2em;
+  margin-right: 6px;
+  font-size: 1.05em;
+}
